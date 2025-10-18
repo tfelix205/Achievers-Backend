@@ -5,34 +5,31 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "My API Documentation",
+      title: "Splita Backend API Documentation",
       version: "1.0.0",
       description: `
-        This is the official documentation for the REST API.
-        <br><br>
-        **Environment:**  
-        - 🧪 Development → http://localhost:5000  
-        - 🚀 Production → https://api.yourdomain.com  
+        This is the official documentation for Splita Api.
+        Here, you'll find all the information you need to effectively interact with our API endpoints.
       `,
       contact: {
         name: "Backend Team",
-        email: "dev@yourdomain.com",
+        email: "tfelix205@gmail.com",
       },
     },
 
-    // 👇 Multiple environment servers
+   
     servers: [
       {
         url: "http://localhost:5000",
         description: "Development server",
       },
       {
-        url: "https://api.yourdomain.com",
+        url: "https://splita.onrender.com",
         description: "Production server",
       },
     ],
 
-    // 👇 Components: schemas + security
+    // Components: schemas + security
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -47,15 +44,15 @@ const options = {
         User: {
           type: "object",
           properties: {
-            id: { type: "string", example: "64b2e9d2f1b0c12345abc678" },
+            id: { type: Number, example: "64" },
             email: { type: "string", example: "user@example.com" },
-            name: { type: "string", example: "John Doe" },
+            name: { type: "string", example: "chidera adankpa" },
           },
         },
       },
     },
 
-    // 👇 Apply bearerAuth globally (optional)
+    //  Apply bearerAuth globally (optional)
     security: [
       {
         bearerAuth: [],
@@ -63,7 +60,7 @@ const options = {
     ],
   },
 
-  // 👇 Paths to route files for Swagger annotations
+  //  Paths to route files for Swagger annotations
   apis: ["./routes/*.js"],
 };
 
