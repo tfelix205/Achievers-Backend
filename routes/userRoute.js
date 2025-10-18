@@ -7,6 +7,7 @@ const auth = require('../middleware/auth');
 router.post('/register', userController.register);
 router.post('/verify-otp', userController.verifyEmail);
 router.post('/login', userController.login);
+router.get('/all-users', userController.getAllUsers);
 
 // Protected routes
 router.get('/profile', auth, userController.profile);
@@ -251,5 +252,59 @@ module.exports = router;
  *                   example: Unauthorized
  *       500:
  *         description: Server error
+ */
+
+
+/**
+ * @swagger
+ * /api/users/all-users:
+ *   get:
+ *     summary: Retrieve a list of all users
+ *     tags:
+ *       - Users
+ *     responses:
+ *       200:
+ *         description: A JSON array of user objects excluding sensitive data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                     example: 1
+ *                   name:
+ *                     type: string
+ *                     example: John Doe
+ *                   email:
+ *                     type: string
+ *                     example: johndoe@example.com
+ *                   phone:
+ *                     type: string
+ *                     example: "+1234567890"
+ *                   isVerified:
+ *                     type: boolean
+ *                     example: true
+ *                   createdAt:
+ *                     type: string
+ *                     format: date-time
+ *                   updatedAt:
+ *                     type: string
+ *                     format: date-time
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
+ *                 error:
+ *                   type: string
+ *                   example: Error message details
  */
 
