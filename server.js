@@ -4,10 +4,12 @@ require('dotenv').config();
 const cron = require('node-cron');
 const db = require('./models');
 const { processDuePayouts } = require('./services/ajoPayoutService');
+const setupSwagger = require('./swagger/swagger')
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+setupSwagger(app)
 
 
 // Import routes
@@ -50,7 +52,7 @@ app.get('/', (req, res) => res.send('Welcome to the Ajo API'));
 
 const PORT = process.env.PORT || 5000;
 
-db.sequelize.sync({ alter: true }).then(() => {
+db.sequelize.sync().then(() => {
   console.log('Models synced successfully.');
   app.listen(PORT, () =>
     console.log(`🚀 Server running on http://localhost:${PORT}`)
