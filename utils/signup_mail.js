@@ -13,7 +13,7 @@ exports.signupMail = (otp, name) => {
         <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
           <tr>
             <td style="padding: 40px 40px 30px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700;">Risebite</h1>
+              <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700;">Splita</h1>
             </td>
           </tr>
           <tr>
@@ -34,8 +34,8 @@ exports.signupMail = (otp, name) => {
           </tr>
           <tr>
             <td style="padding: 30px 40px 40px; border-top: 1px solid #e5e5e5;">
-              <p style="margin: 0 0 12px; color: #999999; font-size: 13px;">Need help? Contact us at <a href="mailto:support@risebite.com" style="color: #667eea;">support@risebite.com</a></p>
-              <p style="margin: 0; color: #999999; font-size: 13px;">&copy; 2025 Risebite. All rights reserved.</p>
+              <p style="margin: 0 0 12px; color: #999999; font-size: 13px;">Need help? Contact us at <a href="mailto:support@splita.com" style="color: #667eea;">support@splita.com</a></p>
+              <p style="margin: 0; color: #999999; font-size: 13px;">&copy; 2025 splita. All rights reserved.</p>
             </td>
           </tr>
         </table>

@@ -3,6 +3,9 @@ const jwt = require('jsonwebtoken');
 const db = require('../models');
 const User = db.User;
 const { Op } = require('sequelize');
+const { signupMail } = require('../utils/signup_mail');
+const sendEmail = require('../utils/sendgrid');
+
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -33,6 +36,11 @@ exports.register = async (req, res) => {
 
     // create wallet automatically
     await db.Wallet.create({ userId: newUser.id });
+    await sendEmail(
+      newUser.email,
+      'Verify your email',
+      signupMail(newUser.name, otp)
+    );
 
     res.status(201).json({ message: 'User registered successfully', user: newUser });
   } catch (err) {
