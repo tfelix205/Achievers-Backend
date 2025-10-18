@@ -1,0 +1,507 @@
+ajo-backend/
+│
+├── .env
+├── package.json
+├── server.js
+│
+├── config/
+│   └── database.js
+│
+├── models/
+│   ├── index.js
+│   ├── user.js
+│   ├── group.js
+│   ├── contribution.js
+│   ├── payout.js
+│   └── wallet.js
+│
+├── routes/
+│   ├── user.routes.js
+│   ├── group.routes.js
+│   ├── contribution.routes.js
+│   └── payout.routes.js
+│
+└── controllers/
+    ├── user.controller.js
+    ├── group.controller.js
+    ├── contribution.controller.js
+    └── payout.controller.js
+
+
+
+
+
+========SIGNUP===========
+POST http://localhost:5000/api/users/register
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "08012345678",
+  "password": "123456"
+}
+
+
+-----------LOGIN--------
+POST http://localhost:5000/api/users/login
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "123456"
+}
+
+
+
+=======GET PROFILE ===========
+GET http://localhost:5000/api/users/profile
+Authorization: Bearer <token>
+
+
+
+
+========CREATE GROUP =============
+POST http://localhost:5000/api/groups
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Family Ajo",
+  "contributionAmount": 1000,
+  "cycle": "weekly"
+}
+
+
+
+
+========join group ===========
+POST http://localhost:5000/api/groups/1/join
+Authorization: Bearer <token>
+
+
+
+
+
+=======GET ALL USERS GROUP===============
+GET http://localhost:5000/api/groups
+Authorization: Bearer <token>
+
+
+
+
+======CONTRIBUTE TO GROUP=============
+POST http://localhost:5000/api/contributions/1
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": 1000
+}
+
+response:{
+  "message": "Contribution successful",
+  "contribution": {
+    "id": 1,
+    "userId": 2,
+    "groupId": 1,
+    "amount": 1000,
+    "status": "success",
+    "date": "2025-10-16T10:00:00.000Z"
+  }
+}
+
+
+
+======GET MY CONTRIBUTIONS ====
+GET http://localhost:5000/api/contributions/my
+Authorization: Bearer <token>
+
+
+RES:[
+  {
+    "id": 1,
+    "amount": 1000,
+    "status": "success",
+    "date": "2025-10-16T10:00:00.000Z",
+    "Group": { "name": "Family Ajo", "contributionAmount": 1000 }
+  }
+]
+
+
+
+
+
+
+
+
+=========GET ALL GROUPS CONTRIBUTIONS====
+GET http://localhost:5000/api/contributions/group/1
+Authorization: Bearer <token>
+
+
+
+RES:[
+  {
+    "id": 1,
+    "amount": 1000,
+    "status": "success",
+    "User": { "id": 2, "name": "John Doe", "email": "john@example.com" }
+  }
+]
+
+
+
+
+
+
+==== TRIGGER PAYOUT (ADMIN ONLY)========
+POST http://localhost:5000/api/payouts/1/trigger
+Authorization: Bearer <admin_token>
+
+RES: {
+  "message": "Payout of ₦5000 successfully triggered for member ID 3",
+  "payout": {
+    "id": 1,
+    "groupId": 1,
+    "userId": 3,
+    "amount": 5000,
+    "status": "paid",
+    "payoutDate": "2025-10-16T10:30:00.000Z"
+  }
+}
+
+
+
+===GET GROUP PAYOUT ============
+GET http://localhost:5000/api/payouts/group/1
+Authorization: Bearer <token>
+
+RES: [
+  {
+    "id": 1,
+    "amount": 5000,
+    "status": "paid",
+    "User": {
+      "id": 3,
+      "name": "Jane Doe",
+      "email": "jane@example.com"
+    }
+  }
+]
+
+
+
+
+
+=====GET MY PAYOUT =======
+GET http://localhost:5000/api/payouts/my
+Authorization: Bearer <token>
+
+
+RES: [
+  {
+    "id": 1,
+    "amount": 5000,
+    "status": "paid",
+    "Group": { "id": 1, "name": "Family Ajo" }
+  }
+]
+
+
+
+
+===== GET WALLET ====
+GET http://localhost:5000/api/wallet
+Authorization: Bearer <token>
+
+RES:{
+  "id": 1,
+  "balance": 2000,
+  "Transactions": [
+    { "type": "fund", "amount": 1000 },
+    { "type": "withdraw", "amount": 500 }
+  ]
+}
+
+
+
+
+
+
+==== FUND WALLET ===
+POST http://localhost:5000/api/wallet/fund
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": 1000
+}
+
+RES: {
+  "message": "Wallet funded with ₦1000",
+  "wallet": { "balance": 3000 },
+  "transaction": {
+    "type": "fund",
+    "amount": 1000,
+    "reference": "TXN-xxxxxx"
+  }
+}
+
+
+
+===WITHDRAW =====
+POST http://localhost:5000/api/wallet/withdraw
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": 500
+}
+
+RES: {
+  "message": "₦500 withdrawn successfully",
+  "wallet": { "balance": 2500 },
+  "transaction": {
+    "type": "withdraw",
+    "amount": 500
+  }
+}
+
+
+
+==== TRANSACTIONS ===
+GET http://localhost:5000/api/wallet/transactions
+Authorization: Bearer <token>
+
+RES: [
+  { "type": "fund", "amount": 1000 },
+  { "type": "withdraw", "amount": 500 }
+]
+
+
+
+
+now for the payment integration
+Overview: How it works
+
+User hits “Fund Wallet” → /api/payments/initiate
+
+You send Paystack the user’s email and amount.
+
+Paystack returns an authorization URL.
+
+Frontend redirects user to that page.
+
+Paystack calls your /api/payments/verify/:reference
+
+You verify the transaction with Paystack API.
+
+If it’s successful → you credit the user’s wallet.
+
+https://dashboard.paystack.com/#/settings/developer
+
+
+
+===== INITIATE PAYMENT =======
+POST http://localhost:5000/api/payments/initiate
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": 1000
+}
+RES: {
+  "authorization_url": "https://checkout.paystack.com/abcdef",
+  "reference": "PSK-xxxxxxx"
+}
+
+
+
+
+=====VERIFY PAYMENT =====
+GET http://localhost:5000/api/payments/verify/PSK-xxxxxxx
+Authorization: Bearer <token>
+
+RES: {
+  "message": "Payment verified and wallet funded",
+  "wallet": { "balance": 5000 },
+  "transaction": {
+    "reference": "PSK-xxxxxxx",
+    "status": "success"
+  }
+}
+
+
+
+What’s a Webhook?
+
+A webhook is a callback from Paystack → your backend.
+When a payment is successful, Paystack sends a POST request to your endpoint with the transaction data.
+
+Example:
+
+POST https://yourdomain.com/api/payments/webhook
+
+
+You verify it’s from Paystack using their signature header, then update your wallet and transaction record.
+
+
+
+
+Step 4: Configure Paystack Dashboard
+
+Go to 👉 https://dashboard.paystack.com/#/settings/developer
+
+Find Webhook URL
+
+Set it to your backend URL, for example:
+
+https://your-api-domain.com/api/payments/webhook/paystack
+
+
+or during testing with Ngrok
+:
+
+https://abcd1234.ngrok.io/api/payments/webhook/paystack
+
+
+====TESTING WEBHOOK ===
+POST http://localhost:5000/api/payments/webhook/paystack
+Content-Type: application/json
+x-paystack-signature: <generate using your test key>
+
+{
+  "event": "charge.success",
+  "data": {
+    "reference": "PSK-xxxxxx",
+    "amount": 100000
+  }
+}
+
+
+
+
+=== WITHDRAWAL =====
+Overview — How Withdrawals Work via Paystack
+
+User requests withdrawal → /api/payments/withdraw
+
+You:
+
+Validate amount and bank details.
+
+Verify the user’s wallet balance.
+
+Call Paystack Transfer Recipient API (to register the user’s bank).
+
+Then call Paystack Transfer API (to initiate the transfer).
+
+When Paystack confirms transfer success → you update the transaction and reduce wallet balance.
+
+
+
+==== TESTING WITHDRAWAL ===
+POST http://localhost:5000/api/payments/withdraw
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": 1000,
+  "bankCode": "058",
+  "accountNumber": "0123456789",
+  "accountName": "John Doe"
+}
+RES:{
+  "message": "Withdrawal of ₦1000 initiated successfully",
+  "transfer": {
+    "id": 12345,
+    "reference": "TRF_abc123",
+    "status": "pending"
+  },
+  "transaction": {
+    "type": "withdraw",
+    "amount": 1000,
+    "status": "pending"
+  },
+  "wallet": { "balance": 5000 }
+}
+
+
+=== GET ALL BANKS==
+GET http://localhost:5000/api/payments/banks
+
+RES:{
+  "count": 24,
+  "banks": [
+    {
+      "name": "Access Bank",
+      "code": "044",
+      "slug": "access-bank",
+      "type": "nuban"
+    },
+    {
+      "name": "GTBank",
+      "code": "058",
+      "slug": "guaranty-trust-bank",
+      "type": "nuban"
+    },
+    {
+      "name": "UBA",
+      "code": "033",
+      "slug": "united-bank-for-africa",
+      "type": "nuban"
+    }
+  ]
+}
+
+
+
+
+==== CREATE AJO GROUP ===
+POST /api/ajo
+Authorization: Bearer <token>
+{
+  "name": "October Savings Squad",
+  "contributionAmount": 5000,
+  "frequency": "weekly",
+  "memberLimit": 5,
+  "totalCycle": 5
+}
+
+
+
+==== JOIN AJO GROUP ===
+POST /api/ajo/1/join
+Authorization: Bearer <token>
+
+
+=== CONTRIBUTE ===
+POST /api/ajo/1/contribute
+Authorization: Bearer <token>
+
+=== GET MY GROUP ===
+GET /api/ajo/my
+Authorization: Bearer <token>
+
+
+
+
+===PAYOUT LOG ===
+✅ GET /api/ajo/payouts/my
+
+RES: [
+  {
+    "id": 3,
+    "ajoGroupId": 1,
+    "userId": 12,
+    "amount": 24000,
+    "commission": 500,
+    "paymentMethod": "paystack",
+    "status": "success",
+    "payoutDate": "2025-10-16T00:00:00Z",
+    "AjoGroup": {
+      "name": "October Savings Squad"
+    }
+  }
+]
