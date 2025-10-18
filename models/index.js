@@ -13,7 +13,7 @@ require('dotenv').config();
 // );
 
 const sequelize = new Sequelize('ajo_db', 'root', 'Backend8989', {
-  host: 'localhost',
+  host: 'https://splita.onrender.com',
    dialect: 'mysql',
    logging:false 
  });
