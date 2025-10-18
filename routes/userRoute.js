@@ -25,7 +25,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /register:
+ * api/users/register:
  *   post:
  *     summary: Register a new user
  *     tags: [User]
@@ -97,7 +97,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /verify-otp:
+ * api/users/verify-otp:
  *   post:
  *     summary: Verify user's email with OTP
  *     tags: [User]
@@ -146,7 +146,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /login:
+ * api/users/login:
  *   post:
  *     summary: User login
  *     tags: [User]
@@ -210,7 +210,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /profile:
+ * api/users/profile:
  *   get:
  *     summary: Get user profile (protected)
  *     tags: [User]
