@@ -44,14 +44,14 @@ module.exports = router;
  *             properties:
  *               name:
  *                 type: string
- *                 example: John Doe
+ *                 example: jimoh chidera
  *               email:
  *                 type: string
  *                 format: email
- *                 example: john@example.com
+ *                 example: jimoh@example.com
  *               phone:
  *                 type: string
- *                 example: '+1234567890'
+ *                 example: '08034567890'
  *               password:
  *                 type: string
  *                 format: password
@@ -75,13 +75,13 @@ module.exports = router;
  *                       example: 1
  *                     name:
  *                       type: string
- *                       example: John Doe
+ *                       example: jimoh chidera
  *                     email:
  *                       type: string
- *                       example: john@example.com
+ *                       example: jimoh@example.com
  *                     phone:
  *                       type: string
- *                       example: '+1234567890'
+ *                       example: '09077552266'
  *       400:
  *         description: Missing or invalid data / Email already registered
  *         content:
@@ -116,7 +116,7 @@ module.exports = router;
  *               email:
  *                 type: string
  *                 format: email
- *                 example: john@example.com
+ *                 example: jimoh@example.com
  *               otp:
  *                 type: string
  *                 example: '123456'
@@ -165,7 +165,7 @@ module.exports = router;
  *               email:
  *                 type: string
  *                 format: email
- *                 example: john@example.com
+ *                 example: jimoh@example.com
  *               password:
  *                 type: string
  *                 format: password
@@ -230,13 +230,13 @@ module.exports = router;
  *                   example: 1
  *                 name:
  *                   type: string
- *                   example: John Doe
+ *                   example: jimoh chidera
  *                 email:
  *                   type: string
- *                   example: john@example.com
+ *                   example: jimoh@example.com
  *                 phone:
  *                   type: string
- *                   example: '+1234567890'
+ *                   example: '08189776655'
  *                 Wallet:
  *                   type: object
  *                   description: User's wallet details
@@ -277,13 +277,13 @@ module.exports = router;
  *                     example: 1
  *                   name:
  *                     type: string
- *                     example: John Doe
+ *                     example: jimoh chidera
  *                   email:
  *                     type: string
- *                     example: johndoe@example.com
+ *                     example: jimoh@example.com
  *                   phone:
  *                     type: string
- *                     example: "+1234567890"
+ *                     example: "08187643459"
  *                   isVerified:
  *                     type: boolean
  *                     example: true
