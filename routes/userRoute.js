@@ -12,7 +12,7 @@ router.get('/all-users', userController.getAllUsers);
 
 // Protected routes
 router.get('/profile', auth, userController.profile);
-router.delete('/delete-account',  userController.deleteUser);
+router.delete('/delete-account/:id',  userController.deleteUser);
 
 module.exports = router;
 
@@ -385,20 +385,24 @@ module.exports = router;
 
 
 
-
 /**
  * @swagger
- * /api/users/delete-account:
+ * /api/users/delete-account/{id}:
  *   delete:
- *     summary: Delete the authenticated user's account
+ *     summary: Delete a user account by ID
+ *     description: Permanently deletes a user account from the system using the provided user ID.
  *     tags:
  *       - Users
- *     description: Permanently deletes the currently authenticated user's account from the system.
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The ID of the user to delete
  *     responses:
  *       200:
- *         description: User account deleted successfully
+ *         description: User deleted successfully
  *         content:
  *           application/json:
  *             schema:
@@ -407,16 +411,6 @@ module.exports = router;
  *                 message:
  *                   type: string
  *                   example: User deleted successfully
- *       401:
- *         description: Unauthorized — Missing or invalid token
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Unauthorized
  *       404:
  *         description: User not found
  *         content:
@@ -428,7 +422,7 @@ module.exports = router;
  *                   type: string
  *                   example: User not found
  *       500:
- *         description: Internal server error
+ *         description: Server error
  *         content:
  *           application/json:
  *             schema:
@@ -439,5 +433,6 @@ module.exports = router;
  *                   example: Server error
  *                 error:
  *                   type: string
- *                   example: Error message details
+ *                   example: Detailed error message
  */
+
