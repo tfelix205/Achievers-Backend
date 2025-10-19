@@ -12,7 +12,7 @@ router.get('/all-users', userController.getAllUsers);
 
 // Protected routes
 router.get('/profile', auth, userController.profile);
-router.delete('/delete-account',  userController.deleteAccount);
+router.delete('/delete-account',  userController.deleteUser);
 
 module.exports = router;
 
