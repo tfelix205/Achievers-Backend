@@ -12,11 +12,17 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 // REGISTER USER
 exports.register = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, confirmPassword } = req.body;
 
     // Validate
-    if (!name || !email || !password)
+    if (!name || !email || !password || !confirmPassword)
       return res.status(400).json({ message: 'Name, email and password required' });
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        message: 'Password and confirm password do not match'
+      })
+    }
 
     const existing = await User.findOne({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email already registered' });
@@ -31,18 +37,19 @@ exports.register = async (req, res) => {
       phone,
       password: hash,
       otp,
-      otpExpiry
+      otpExpiry,
+      isVerified: false
     });
 
     // create wallet automatically
     await db.Wallet.create({ userId: newUser.id });
-    await sendEmail(
-      newUser.email,
-      'Verify your email',
-      signupMail(newUser.name, otp)
-    );
+    await sendEmail({
+      email: user.email,
+      subject: 'Verify Your Splita Account',
+      html:signupMail(otp, newUser.name)
+    });
 
-    res.status(201).json({ message: 'User registered successfully', user: newUser });
+    res.status(201).json({ message: 'User registered successfully', data: newUser });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -53,34 +60,115 @@ exports.register = async (req, res) => {
 
 
 exports.verifyEmail = async (req, res) => {
-  const { email, otp } = req.body;
+    try {
 
-  try {
-    const user = await User.findOne({
-      where: {
-        email,
-        otp,
-        otpExpiry: { [Op.gt]: new Date() } 
-      }
-    });
+        const { email, otp } = req.body;
 
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
+        const user = await User.findOne({ where: { email }});
+
+        if (!user) {
+            return res.status(404).json({
+                message: ' User not found'
+            });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({
+                message: "User already verified"
+            });
+        }
+
+        if (user.otp !== otp) {
+            return res.status(400).json({
+                message: "Invalid OTP"
+            });
+        }
+
+        if (user.otpExpiry < Date.now()) {
+            return res.status(400).json({
+                message: "OTP has expired"
+            });
+        }
+
+        user.isVerified = true;
+        user.otp = null;
+        user.otpExpiry = null;
+
+        await user.save();
+
+        const token = jwt.sign({
+            id: user.id,
+            email: user.email
+        }, process.env.JWT_SECRET, {
+             expiresIn: '1d'
+            });
+
+        res.status(200).json({
+            message: "Email verified successfullyy",
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                isVerified: user.isVerified
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: 'Internal Server Error',
+            error: error.message 
+        })
     }
-
-    user.isVerified = true;
-    user.otp = null;
-    user.otpExpiry = null;
-    await user.save();
-
-    res.status(200).json({ message: 'Email verified successfully!' });
-  } catch (err) {
-    console.log(err);
-    
-    res.status(500).json({ error: err.message });
-  }
 };
 
+
+exports.resendOtp = async (req, res) => {
+
+    try {
+
+        const { email } = req.body;
+
+        const user = await User.findOne({ where: { email }});
+
+        if (!user) {
+            return res.status(404).json({
+                message: 'User not found'
+            });
+        }
+        if (user.isVerified) {
+            return res.status(400).json({
+                message: 'User already verified'
+            });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes from now
+
+        user.otp = otp;
+        user.otpExpiry = otpExpiry;
+
+        await user.save();
+
+        await sendMail({
+            email: user.email,
+            subject: 'Your New Splita Verification Code',
+            html: signupMail(otp, user.name)
+        });
+
+        res.status(200).json({
+            message: 'OTP resent successfully',
+            email: user.email
+        });
+
+    } catch {
+        res.status(500).json({
+            message: 'Internal server error',
+            error: error.message
+        })
+    }
+};
 
 // LOGIN USER
 exports.login = async (req, res) => {
@@ -132,3 +220,39 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   } 
 };
+
+exports.searchUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(400).json({ message: 'Query parameter is required' });
+    }
+    const users = await User.findAll({
+      where: {
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${query}%` } },
+          { email: { [Op.iLike]: `%${query}%` } },
+        ],  
+      },
+      attributes: { exclude: ['password', 'otp', 'otpExpiry'] },
+    });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;  
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    await user.destroy();
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+

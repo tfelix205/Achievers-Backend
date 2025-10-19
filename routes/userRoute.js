@@ -6,11 +6,13 @@ const auth = require('../middleware/auth');
 // Public routes
 router.post('/register', userController.register);
 router.post('/verify-otp', userController.verifyEmail);
+router.post('/resend-otp', userController.resendOtp);
 router.post('/login', userController.login);
 router.get('/all-users', userController.getAllUsers);
 
 // Protected routes
 router.get('/profile', auth, userController.profile);
+router.delete('/delete-account',  userController.deleteAccount);
 
 module.exports = router;
 
@@ -308,3 +310,134 @@ module.exports = router;
  *                   example: Error message details
  */
 
+
+
+/**
+ * @swagger
+ * api/users/resend-otp:
+ *   post:
+ *     summary: Resend a new OTP to the user's registered email
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: johndoe@example.com
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: OTP resent successfully
+ *                 email:
+ *                   type: string
+ *                   example: johndoe@example.com
+ *       400:
+ *         description: User already verified or invalid request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User already verified
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User not found
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Internal server error
+ *                 error:
+ *                   type: string
+ *                   example: Something went wrong
+ */
+
+
+
+
+
+
+
+/**
+ * @swagger
+ * /api/users/delete-account:
+ *   delete:
+ *     summary: Delete the authenticated user's account
+ *     tags:
+ *       - Users
+ *     description: Permanently deletes the currently authenticated user's account from the system.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User deleted successfully
+ *       401:
+ *         description: Unauthorized — Missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Unauthorized
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User not found
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
+ *                 error:
+ *                   type: string
+ *                   example: Error message details
+ */

@@ -1,5 +1,5 @@
 exports.signupMail = (otp, name) => {
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -24,18 +24,22 @@ exports.signupMail = (otp, name) => {
                 <tr>
                   <td style="text-align: center;">
                     <div style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px 50px; border-radius: 8px;">
+<<<<<<< HEAD
                       <span style="color: #ffffff; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace;">{{${otp}}}</span>
+=======
+                      <span style="color: #ffffff; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</span>
+>>>>>>> 4fa369ed5c85afa20b7675120bc597fcba26a3e0
                     </div>
                   </td>
                 </tr>
               </table>
-              <p style="margin: 24px 0 16px; color: #666666; font-size: 14px;">This code will expire in <strong>15 minutes</strong>. If you didn’t request this, please ignore the email.</p>
+              <p style="margin: 24px 0 16px; color: #666666; font-size: 14px;">This code will expire in <strong>15 minutes</strong>. If you didn’t request this, please ignore this email.</p>
             </td>
           </tr>
           <tr>
             <td style="padding: 30px 40px 40px; border-top: 1px solid #e5e5e5;">
               <p style="margin: 0 0 12px; color: #999999; font-size: 13px;">Need help? Contact us at <a href="mailto:support@splita.com" style="color: #667eea;">support@splita.com</a></p>
-              <p style="margin: 0; color: #999999; font-size: 13px;">&copy; 2025 splita. All rights reserved.</p>
+              <p style="margin: 0; color: #999999; font-size: 13px;">&copy; 2025 Splita. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -43,5 +47,5 @@ exports.signupMail = (otp, name) => {
     </tr>
   </table>
 </body>
-</html>`.replace('{{OTP_CODE}}', otp);
+</html>`;
 };
