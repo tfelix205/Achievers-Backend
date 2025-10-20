@@ -43,6 +43,7 @@ module.exports = router;
  *               - name
  *               - email
  *               - password
+ *               - confirmPassword
  *             properties:
  *               name:
  *                 type: string
@@ -55,6 +56,10 @@ module.exports = router;
  *                 type: string
  *                 example: '08034567890'
  *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: secret123
+ *              confirmPassword:
  *                 type: string
  *                 format: password
  *                 example: secret123

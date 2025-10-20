@@ -44,7 +44,7 @@ exports.register = async (req, res) => {
     // create wallet automatically
     await db.Wallet.create({ userId: newUser.id });
     await sendEmail({
-      email: user.email,
+      email: newUser.email,
       subject: 'Verify Your Splita Account',
       html:signupMail(otp, newUser.name)
     });
