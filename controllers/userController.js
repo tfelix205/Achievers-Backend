@@ -4,7 +4,7 @@ const db = require('../models');
 const User = db.User;
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
-const {sendEmail} = require('../utils/sendgrid');
+const {sendMail} = require('../utils/sendgrid');
 
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -43,7 +43,7 @@ exports.register = async (req, res) => {
 
     // create wallet automatically
     await db.Wallet.create({ userId: newUser.id });
-    await sendEmail({
+    await sendMail({
       email: newUser.email,
       subject: 'Verify Your Splita Account',
       html:signupMail(otp, newUser.name)

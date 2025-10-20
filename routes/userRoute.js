@@ -28,12 +28,12 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/register:
+ * /api/users/register:
  *   post:
  *     summary: Register a new user
  *     tags: [User]
  *     requestBody:
- *       description: User registration data
+ *       description: User registration data (password and confirmPassword must match)
  *       required: true
  *       content:
  *         application/json:
@@ -60,9 +60,9 @@ module.exports = router;
  *                 format: password
  *                 example: secret123
  *               confirmPassword:
- *                  type: string
- *                  format: password
- *                  example: secret123
+ *                 type: string
+ *                 format: password
+ *                 example: secret123
  *     responses:
  *       201:
  *         description: User registered successfully
@@ -90,7 +90,7 @@ module.exports = router;
  *                       type: string
  *                       example: '09077552266'
  *       400:
- *         description: Missing or invalid data / Email already registered
+ *         description: Missing or invalid data / Email already registered / Passwords do not match
  *         content:
  *           application/json:
  *             schema:
@@ -98,10 +98,13 @@ module.exports = router;
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Email already registered
+ *                   example: Passwords do not match
  *       500:
  *         description: Server error
  */
+
+
+
 
 /**
  * @swagger
