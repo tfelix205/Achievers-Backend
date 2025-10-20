@@ -4,21 +4,20 @@ exports.registerValidator = async (req, res, next) => {
 
     const Schema = Joi.object({
 
-        name: Joi.string().min(5).required().pattern(/^[A-Za-z\s]+$/).messages({
+        name: Joi.string().min(3).required().pattern(/^[A-Za-z\s]+$/).messages({
 
             'string.empty': 'Name is required',
 
-            'string.min': 'Name should have at least 5 characters',
+            'string.min': 'Name should have at least 3 characters',
 
             'string.pattern.base': 'Name can only contain letters and spaces'
         }),
 
-        email: Joi.string().email().required().messages({
-
+        email: Joi.string().pattern(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/).required().messages({
+            
             'string.empty': 'Email is required',
 
-            'string.email': 'Please provide a valid email address'
-
+            'string.pattern.base': 'Email must be a valid address (e.g. name@example.com)'
         }),
 
         phone: Joi.string().trim().pattern(/^\d{11}$/).required().messages({
