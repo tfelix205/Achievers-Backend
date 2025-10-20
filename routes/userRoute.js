@@ -59,10 +59,10 @@ module.exports = router;
  *                 type: string
  *                 format: password
  *                 example: secret123
- *              confirmPassword:
- *                 type: string
- *                 format: password
- *                 example: secret123
+ *               confirmPassword:
+ *                  type: string
+ *                  format: password
+ *                  example: secret123
  *     responses:
  *       201:
  *         description: User registered successfully

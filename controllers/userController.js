@@ -4,7 +4,7 @@ const db = require('../models');
 const User = db.User;
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
-const sendEmail = require('../utils/sendgrid');
+const {sendEmail} = require('../utils/sendgrid');
 
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
