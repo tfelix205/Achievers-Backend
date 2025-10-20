@@ -14,7 +14,7 @@ exports.registerValidator = async (req, res, next) => {
         }),
 
         email: Joi.string().pattern(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/).required().messages({
-            
+
             'string.empty': 'Email is required',
 
             'string.pattern.base': 'Email must be a valid address (e.g. name@example.com)'
@@ -42,7 +42,7 @@ exports.registerValidator = async (req, res, next) => {
 
         })
 
-    });
+    }); 
 
     try {
         await Schema.validateAsync(req.body, { abortEarly: false });
