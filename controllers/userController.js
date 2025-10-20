@@ -5,6 +5,7 @@ const User = db.User;
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
 const {sendMail} = require('../utils/sendgrid');
+const nameToTitleCase = require('../helper/nameConverter');
 
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -32,7 +33,7 @@ exports.register = async (req, res) => {
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     const newUser = await User.create({
-      name,
+      name: nameToTitleCase(name),
       email,
       phone,
       password: hash,
