@@ -108,7 +108,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/verify-otp:
+ * /api/users/verify-otp:
  *   post:
  *     summary: Verify user's email with OTP
  *     tags: [User]
@@ -157,7 +157,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/login:
+ * /api/users/login:
  *   post:
  *     summary: User login
  *     tags: [User]
@@ -221,7 +221,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/profile:
+ * /api/users/profile:
  *   get:
  *     summary: Get user profile (protected)
  *     tags: [User]
@@ -322,7 +322,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/resend-otp:
+ * /api/users/resend-otp:
  *   post:
  *     summary: Resend a new OTP to the user's registered email
  *     tags: [User]
