@@ -2,13 +2,17 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const auth = require('../middleware/auth');
+const { registerValidator, loginValidator } = require('../middleware/validator');
 
 // Public routes
-router.post('/register', userController.register);
+router.post('/register',registerValidator, userController.register);
 router.post('/verify-otp', userController.verifyEmail);
 router.post('/resend-otp', userController.resendOtp);
-router.post('/login', userController.login);
+router.post('/login',loginValidator, userController.login);
 router.get('/all-users', userController.getAllUsers);
+router.post('/forgot-password', userController.forgotPassword);
+router.post('/rest-password', userController.resetPassword);
+
 
 // Protected routes
 router.get('/profile', auth, userController.profile);
@@ -442,5 +446,108 @@ module.exports = router;
  *                 error:
  *                   type: string
  *                   example: Detailed error message
+ */
+
+
+/**
+ * @swagger
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: Request a password reset link
+ *     tags: [User]
+ *     description: Sends a password reset link to the user's email if the account exists.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: johndoe@example.com
+ *     responses:
+ *       200:
+ *         description: Password reset link sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Password reset link sent successfully. Check your mail.
+ *                 resetLink:
+ *                   type: string
+ *                   example: https://yourdomain.com/api/v1/user/reset-password?token=abcd1234
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User not found
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/users/rest-password:
+ *   post:
+ *     summary: Reset user password
+ *     tags: [User]
+ *     description: Allows a user to reset their password using a valid reset token. Requires authentication.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: JWT reset token received from the password reset email
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: NewStrongPassword123
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Password reset successful
+ *       400:
+ *         description: Invalid or expired token / Missing data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Reset link expired
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
  */
 
