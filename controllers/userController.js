@@ -5,6 +5,7 @@ const User = db.User;
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
 const sendEmail = require('../utils/sendgrid');
+const { passwordResetMail } = require('../utils/resetPasswordMail')
 
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -256,3 +257,78 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
+
+exports.forgotPassword = async (req, res) => {
+    try {
+        
+        const { email } = req.body;
+
+        const user = await User.findOne({ where: { email }});
+
+        if(!user) {
+            return res.status(404).json({
+                message: 'User not found'
+            });
+        }
+
+        const resetToken = jwt.sign({
+            id: user.id,
+            email: user.email
+        }, process.env.JWT_SECRET, { expiresIn: '10m' }
+    );
+
+    const resetLink = `${req.protocol}://${req.get(
+      "host"
+    )}/api/v1/user/reset-password?token=${resetToken}`;
+
+    
+    const html = passwordResetMail(user.name, resetLink);
+    await sendMail({
+      email: user.email,
+      subject: "Reset Your Password",
+      html,
+    });
+
+    
+    return res.status(200).json({
+      message: "Password reset link sent successfully. check your mail",
+      resetLink
+    })
+
+    } catch (error) {
+        res.status(500).json({
+            message: 'Internal server error',
+            error: error.message
+        })
+    }
+};
+
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Token and new password required" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findOne({ where: { id: decoded.id } });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password reset successful" });
+  } catch (error) {
+    console.error("Reset Password Error:", error.message);
+    if (error.name === "TokenExpiredError") {
+      return res.status(400).json({ message: "Reset link expired" });
+    }
+    res.status(400).json({ message: "Invalid or expired token" });
+}
+};
