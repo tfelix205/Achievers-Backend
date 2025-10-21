@@ -11,7 +11,7 @@ router.post('/resend-otp', userController.resendOtp);
 router.post('/login',loginValidator, userController.login);
 router.get('/all-users', userController.getAllUsers);
 router.post('/forgot-password', userController.forgotPassword);
-router.post('/rest-password', userController.resetPassword);
+router.post('/reset-password', userController.resetPassword);
 
 
 // Protected routes
@@ -499,7 +499,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/users/rest-password:
+ * /api/users/reset-password:
  *   post:
  *     summary: Reset user password
  *     tags: [User]
