@@ -28,11 +28,14 @@ exports.registerValidator = async (req, res, next) => {
 
         }),
 
-       password: Joi.string().required().pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[@$!%_*#?&-])[A-Za-z\d@$!%_*#?&-]{8,}$/).messages({
+       password: Joi.string()
+        .required()
+        .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%_*#?&-])[A-Za-z\d@$!%_*#?&-]{8,}$/)
+        .messages({
             'string.empty': 'Password is required',
-
-            'string.pattern.base': 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character(d@$!%_*#?&-)'
+            'string.pattern.base': 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%_*#?&-)',
         }),
+
 
         confirmPassword: Joi.any().valid(Joi.ref('password')).required().messages({
 
@@ -52,47 +55,31 @@ exports.registerValidator = async (req, res, next) => {
     } catch (error) {
 
         return res.status(400).json({
-            message: 'Validation Error',
-            error: error.details[0].message
+            message:error.details.map(err => err.message)
+            
         });
     }
 
 };
 
 exports.loginValidator = async (req, res, next) => {
+  const schema = Joi.object({
+    email: Joi.string().email().required().messages({
+      'string.empty': 'Email is required',
+      'string.email': 'Please provide a valid email address',
+    }),
+    password: Joi.string().required().messages({
+      'string.empty': 'Password is required',
+    }),
+  });
 
-    const Schema = Joi.object({
-
-        email: Joi.string().email().required().messages({
-
-            'string.empty': 'Email is required',
-
-            'string.email': 'Please provide a valid email address'
-
-        }),
-
-        password: Joi.string().min(8).required().messages({
-
-            'string.empty': 'Password is required',
-
-            'string.min': 'Password should have at least 8 characters'
-
-        })
-
+  try {
+    await schema.validateAsync(req.body, { abortEarly: false });
+    next();
+  } catch (error) {
+    return res.status(400).json({
+      message:error.details.map(err => err.message) ,
+      
     });
-
-    try {
-
-        await Schema.validateAsync(req.body, { abortEarly: false });
-
-        next();
-
-    } catch (error) {
-        
-        return res.status(400).json({
-            message: 'Validation Error',
-            error: error.details[0].message
-        });
-    }
-
+  }
 };
