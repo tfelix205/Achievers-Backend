@@ -5,10 +5,10 @@ const auth = require('../middleware/auth');
 const { registerValidator, loginValidator } = require('../middleware/validator');
 
 // Public routes
-router.post('/register',registerValidator, userController.register);
+router.post('/register', registerValidator, userController.register);
 router.post('/verify-otp', userController.verifyEmail);
 router.post('/resend-otp', userController.resendOtp);
-router.post('/login',loginValidator, userController.login);
+router.post('/login', loginValidator, userController.login);
 router.get('/all-users', userController.getAllUsers);
 router.post('/forgot-password', userController.forgotPassword);
 router.post('/reset-password', userController.resetPassword);

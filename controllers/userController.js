@@ -4,7 +4,7 @@ const db = require('../models');
 const User = db.User;
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
-const {sendMail} = require('../utils/sendgrid');
+const { sendMail } = require('../utils/sendgrid');
 const { passwordResetMail } = require('../utils/resetPasswordMail')
 const nameToTitleCase = require('../helper/nameConverter');
 
@@ -260,7 +260,6 @@ exports.deleteUser = async (req, res) => {
 };
 
 
-
 exports.forgotPassword = async (req, res) => {
     try {
         
@@ -274,18 +273,17 @@ exports.forgotPassword = async (req, res) => {
             });
         }
 
-        const resetToken = jwt.sign({
-            id: user.id,
-            email: user.email
-        }, process.env.JWT_SECRET, { expiresIn: '10m' }
-    );
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const resetLink = `${req.protocol}://${req.get(
-      "host"
-    )}/api/v1/user/reset-password?token=${resetToken}`;
+    const otpExpiry = Date.now() + 5 * 60 * 1000;
+
+    user.otp = otp;
+    user.otpExpiry = otpExpiry;
+
+    await user.save();
 
     
-    const html = passwordResetMail(user.name, resetLink);
+    const html = passwordResetMail(user.name, otp);
     await sendMail({
       email: user.email,
       subject: "Reset Your Password",
@@ -294,8 +292,9 @@ exports.forgotPassword = async (req, res) => {
 
     
     return res.status(200).json({
-      message: "Password reset link sent successfully. check your mail",
-      resetLink
+      message: "Reset password OTP code sent successfully. check your mail",
+      otp
+
     })
 
     } catch (error) {
@@ -309,29 +308,48 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
+    const { otp, newPassword, confirmNewPassword } = req.body;
 
-    if (!token || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: "Token and new password required" });
+    if (!otp || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({
+         message: "otp and new password and confirm new password required"
+         });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (newPassword !== confirmNewPassword) {
+        return res.status({
+            message: 'Password do not match'
+        })
+    }
 
-    const user = await User.findOne({ where: { id: decoded.id } });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    // Find user by the otp being stored in the user database
+    const user = await User.findOne({ where: { otp } });
+    
+    if (!user) {
+        return res.status(400).json({
+             message: 'Invalid OTP'
+        });
+    } 
+
+    if (Date.now() > user.otpExpiry) {
+        return res.status(400).json({
+            message: 'OTP has expired'
+        })
+    }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
+
+    user.otp = null;
+    user.otpExpiry = null;
     await user.save();
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    console.error("Reset Password Error:", error.message);
-    if (error.name === "TokenExpiredError") {
-      return res.status(400).json({ message: "Reset link expired" });
-    }
-    res.status(400).json({ message: "Invalid or expired token" });
+    
+    res.status(400).json({ 
+        message: "Invalid or expired otp",
+        error: error.message 
+    });
 }
 };
