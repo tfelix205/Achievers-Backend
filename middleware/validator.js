@@ -83,3 +83,41 @@ exports.loginValidator = async (req, res, next) => {
     });
   }
 };
+
+exports.resetPasswordValidator = async (req, res, next) => {
+
+    const schema = Joi.object({
+
+        otp: Joi.string().trim().length(6).required().messages({
+
+            'string.empty': 'OTP is required',
+
+            'string.length': 'OTP must be 6 digits long'
+        }),
+
+        newPassword: Joi.string().required().pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%_*#?&-])[A-Za-z\d@$!%_*#?&-]{8,}$/).messages({
+
+            'string.empty': 'Password is required',
+
+            'string.pattern.base': 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%_*#?&-)',
+        }),
+
+        confirmNewPassword: Joi.any().valid(Joi.ref('newPassword')).required().messages({
+
+            'any.only': 'Passwords do not match',
+
+            'any.required': 'Please confirm your new password'
+        })
+    });
+
+    try {
+        await schema.validateAsync(req.body, { abortEarly: false });
+
+        next();
+
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message
+        })
+    }
+}

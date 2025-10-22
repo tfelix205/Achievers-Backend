@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const auth = require('../middleware/auth');
-const { registerValidator, loginValidator } = require('../middleware/validator');
+const { registerValidator, loginValidator, resetPasswordValidator } = require('../middleware/validator');
 
 // Public routes
 router.post('/register', registerValidator, userController.register);
@@ -11,7 +11,7 @@ router.post('/resend-otp', userController.resendOtp);
 router.post('/login', loginValidator, userController.login);
 router.get('/all-users', userController.getAllUsers);
 router.post('/forgot-password', userController.forgotPassword);
-router.post('/reset-password', userController.resetPassword);
+router.post('/reset-password', resetPasswordValidator, userController.resetPassword);
 
 
 // Protected routes
