@@ -24,7 +24,7 @@ exports.signupMail = (otp, name) => {
                 <tr>
                   <td style="text-align: center;">
                     <div style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px 50px; border-radius: 8px;">
-                      <span style="color: #ffffff; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace;">{{${otp}}}</span>
+                      <span style="color: #ffffff; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace;">${otp}</span>
                     </div>
                   </td>
                 </tr>

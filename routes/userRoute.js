@@ -11,7 +11,8 @@ router.post('/resend-otp', userController.resendOtp);
 router.post('/login', loginValidator, userController.login);
 router.get('/all-users', userController.getAllUsers);
 router.post('/forgot-password', userController.forgotPassword);
-router.post('/rest-password', userController.resetPassword);
+router.post('/reset-password', userController.resetPassword);
+
 
 // Protected routes
 router.get('/profile', auth, userController.profile);
@@ -31,12 +32,12 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/register:
+ * /api/users/register:
  *   post:
  *     summary: Register a new user
  *     tags: [User]
  *     requestBody:
- *       description: User registration data
+ *       description: User registration data (password and confirmPassword must match)
  *       required: true
  *       content:
  *         application/json:
@@ -46,6 +47,7 @@ module.exports = router;
  *               - name
  *               - email
  *               - password
+ *               - confirmPassword
  *             properties:
  *               name:
  *                 type: string
@@ -58,6 +60,10 @@ module.exports = router;
  *                 type: string
  *                 example: '08034567890'
  *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: secret123
+ *               confirmPassword:
  *                 type: string
  *                 format: password
  *                 example: secret123
@@ -88,7 +94,7 @@ module.exports = router;
  *                       type: string
  *                       example: '09077552266'
  *       400:
- *         description: Missing or invalid data / Email already registered
+ *         description: Missing or invalid data / Email already registered / Passwords do not match
  *         content:
  *           application/json:
  *             schema:
@@ -96,14 +102,17 @@ module.exports = router;
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Email already registered
+ *                   example: Passwords do not match
  *       500:
  *         description: Server error
  */
 
+
+
+
 /**
  * @swagger
- * api/users/verify-otp:
+ * /api/users/verify-otp:
  *   post:
  *     summary: Verify user's email with OTP
  *     tags: [User]
@@ -152,7 +161,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/login:
+ * /api/users/login:
  *   post:
  *     summary: User login
  *     tags: [User]
@@ -216,7 +225,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/profile:
+ * /api/users/profile:
  *   get:
  *     summary: Get user profile (protected)
  *     tags: [User]
@@ -317,7 +326,7 @@ module.exports = router;
 
 /**
  * @swagger
- * api/users/resend-otp:
+ * /api/users/resend-otp:
  *   post:
  *     summary: Resend a new OTP to the user's registered email
  *     tags: [User]
@@ -437,5 +446,108 @@ module.exports = router;
  *                 error:
  *                   type: string
  *                   example: Detailed error message
+ */
+
+
+/**
+ * @swagger
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: Request a password reset link
+ *     tags: [User]
+ *     description: Sends a password reset link to the user's email if the account exists.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: johndoe@example.com
+ *     responses:
+ *       200:
+ *         description: Password reset link sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Password reset link sent successfully. Check your mail.
+ *                 resetLink:
+ *                   type: string
+ *                   example: https://yourdomain.com/api/v1/user/reset-password?token=abcd1234
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User not found
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /api/users/reset-password:
+ *   post:
+ *     summary: Reset user password
+ *     tags: [User]
+ *     description: Allows a user to reset their password using a valid reset token. Requires authentication.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: JWT reset token received from the password reset email
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: NewStrongPassword123
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Password reset successful
+ *       400:
+ *         description: Invalid or expired token / Missing data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Reset link expired
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
  */
 

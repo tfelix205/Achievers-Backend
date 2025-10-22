@@ -1,4 +1,4 @@
-exports.passwordResetMail = (name, resetLink) => {
+exports.passwordResetMail = (name, otp) => {
   return `
   <!DOCTYPE html>
   <html lang="en">
@@ -20,11 +20,12 @@ exports.passwordResetMail = (name, resetLink) => {
             <tr>
               <td style="padding: 40px 40px 30px;">
                 <h2 style="margin: 0 0 16px; color: #1a1a1a; font-size: 24px;">Reset Your Password</h2>
-                <p style="margin: 0 0 24px; color: #666666; font-size: 16px;">Hi ${name}, we received a request to reset your password for your Splita account.</p>
+                <p style="margin: 0 0 24px; color: #666666; font-size: 16px;">Hi ${name}, To reset your password please enter the following code on Splita:</p>
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${resetLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-size: 16px; font-weight: 600;">
-                    Reset Password
-                  </a>
+                
+                  <p  style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                 ${otp}
+                  </p>
                 </div>
                 <p style="margin: 24px 0 16px; color: #666666; font-size: 14px;">This link will expire in <strong>15 minutes</strong>. If you didn’t request this, please ignore it.</p>
               </td>
