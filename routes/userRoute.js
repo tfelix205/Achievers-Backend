@@ -453,9 +453,9 @@ module.exports = router;
  * @swagger
  * /api/users/forgot-password:
  *   post:
- *     summary: Request a password reset link
+ *     summary: Request a password reset OTP
  *     tags: [User]
- *     description: Sends a password reset link to the user's email if the account exists.
+ *     description: Sends a 6-digit OTP to the user's email address if the account exists. The OTP expires in 5 minutes.
  *     requestBody:
  *       required: true
  *       content:
@@ -471,7 +471,7 @@ module.exports = router;
  *                 example: johndoe@example.com
  *     responses:
  *       200:
- *         description: Password reset link sent successfully
+ *         description: Reset password OTP sent successfully
  *         content:
  *           application/json:
  *             schema:
@@ -479,10 +479,10 @@ module.exports = router;
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Password reset link sent successfully. Check your mail.
- *                 resetLink:
+ *                   example: Reset password OTP code sent successfully. check your mail
+ *                 otp:
  *                   type: string
- *                   example: https://yourdomain.com/api/v1/user/reset-password?token=abcd1234
+ *                   example: "123456"
  *       404:
  *         description: User not found
  *         content:
@@ -495,17 +495,28 @@ module.exports = router;
  *                   example: User not found
  *       500:
  *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Something went wrong on the server
  */
+
+
 
 /**
  * @swagger
  * /api/users/reset-password:
  *   post:
- *     summary: Reset user password
+ *     summary: Reset user password using OTP
  *     tags: [User]
- *     description: Allows a user to reset their password using a valid reset token. Requires authentication.
- *     security:
- *       - bearerAuth: []
+ *     description: |
+ *       Allows a user to reset their password by providing a valid OTP (sent to their email) 
+ *       along with a new password and its confirmation.  
+ *       The OTP must be valid and not expired.
  *     requestBody:
  *       required: true
  *       content:
@@ -513,17 +524,21 @@ module.exports = router;
  *           schema:
  *             type: object
  *             required:
- *               - token
+ *               - otp
  *               - newPassword
+ *               - confirmNewPassword
  *             properties:
- *               token:
+ *               otp:
  *                 type: string
- *                 description: JWT reset token received from the password reset email
- *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 example: "123456"
  *               newPassword:
  *                 type: string
  *                 format: password
- *                 example: NewStrongPassword123
+ *                 example: StrongPassword123!
+ *               confirmNewPassword:
+ *                 type: string
+ *                 format: password
+ *                 example: StrongPassword123!
  *     responses:
  *       200:
  *         description: Password reset successful
@@ -534,9 +549,9 @@ module.exports = router;
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Password reset successful
+ *                   example: Password reset successful. You can now log in with your new password.
  *       400:
- *         description: Invalid or expired token / Missing data
+ *         description: Invalid request or OTP issues
  *         content:
  *           application/json:
  *             schema:
@@ -544,10 +559,27 @@ module.exports = router;
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Reset link expired
+ *                   example: OTP has expired or invalid. Please request a new one.
  *       404:
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User not found
  *       500:
  *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Something went wrong on the server
  */
+
 
