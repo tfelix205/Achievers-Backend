@@ -1,7 +1,6 @@
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
-const db = require('../models');
-const User = db.User;
+const {User} = require('../models');
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
 const { sendMail } = require('../utils/sendgrid');
