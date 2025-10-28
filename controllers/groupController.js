@@ -7,7 +7,7 @@ exports.createGroup = async (req, res) => {
   try {
     const userId = req.user.id;
     const {
-      name,
+      groupName,
       contributionAmount,
       contributionFrequency,
       payoutFrequency,
@@ -17,13 +17,13 @@ exports.createGroup = async (req, res) => {
     } = req.body;
 
     // Basic validation
-    if (!name || !contributionAmount || !contributionFrequency) {
+    if (!groupName || !contributionAmount || !contributionFrequency) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
     // Create group
     const group = await Group.create({
-      name,
+      groupName,
       contributionAmount,
       contributionFrequency,
       payoutFrequency,
@@ -453,7 +453,8 @@ exports.handlePayout = async (cycle, group) => {
     groupId: group.id,
     cycleId: cycle.id,
     amount: totalAmount,
-    paidAt: new Date(),
+    payoutDate: new Date(),
+    status: 'completed'
   });
 
   // Move to next member
