@@ -4,7 +4,7 @@ require('dotenv').config();
 const cron = require('node-cron');
 const {sequelize} = require('./models');
 const setupSwagger = require('./swagger/swagger')
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 6789;
 
 //init
 const app = express();

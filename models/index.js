@@ -41,7 +41,7 @@ const sequelize = new Sequelize(
 
 User = require('./user')(sequelize, Sequelize.DataTypes);
 const Group = require('./group')(sequelize, Sequelize.DataTypes);
-const Membership = require('./membership')(sequelize, Sequelize.DataTypes);
+const Membership = require('./groupMembers')(sequelize, Sequelize.DataTypes);
 const PayoutAccount = require('./payoutAccount')(sequelize, Sequelize.DataTypes);
 const Contribution = require('./contribution')(sequelize, Sequelize.DataTypes);
 const Cycle = require('./cycle')(sequelize, Sequelize.DataTypes);
@@ -97,5 +97,3 @@ module.exports = {
   Cycle,
   Payout,
 };
-
-
