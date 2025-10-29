@@ -364,7 +364,9 @@ exports.startCycle = async (req, res) => {
       return res.status(400).json({ message: 'A cycle is already active for this group.' });
     }
 
-    if (group.members.length < group.totalMembers) {
+    if ((group.members.length + 1 ) < group.totalMembers) {
+      console.log(group.members.length, group.totalMembers);
+      
       return res.status(400).json({ message: 'All members must be approved before starting a cycle.' });
     }
 
