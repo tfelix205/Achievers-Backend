@@ -53,7 +53,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/create:
+ * /api/groups/create:
  *   post:
  *     summary: Create a new Ajo group
  *     tags: [Groups]
@@ -102,7 +102,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/all:
+ * /api/groups/all:
  *   get:
  *     summary: Get all groups the user belongs to
  *     tags: [Groups]
@@ -117,7 +117,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}:
+ * /api/groups/{id}:
  *   get:
  *     summary: Get detailed information about a group
  *     tags: [Groups]
@@ -141,7 +141,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/invite:
+ * /api/groups/{id}/invite:
  *   get:
  *     summary: Generate an invite link for a group (Admin only)
  *     tags: [Groups]
@@ -165,7 +165,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/join:
+ * /api/groups/{id}/join:
  *   post:
  *     summary: Request to join a group using invite link
  *     tags: [Groups]
@@ -195,7 +195,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{groupId}/join-request/{memberId}:
+ * /api/groups/{groupId}/join-request/{memberId}:
  *   post:
  *     summary: Approve or reject a join request (Admin only)
  *     tags: [Groups]
@@ -234,7 +234,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/summary:
+ * /api/groups/{id}/summary:
  *   get:
  *     summary: Get financial summary of a group
  *     tags: [Groups]
@@ -255,7 +255,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/payout-account:
+ * /api/groups/payout-account:
  *   post:
  *     summary: Add payout account for a user
  *     tags: [Groups]
@@ -289,7 +289,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/start-cycle:
+ * /api/groups/{id}/start-cycle:
  *   post:
  *     summary: Admin starts a new contribution cycle
  *     tags: [Groups]
@@ -312,7 +312,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/contribute:
+ * /api/groups/{id}/contribute:
  *   post:
  *     summary: Make a contribution in the active cycle
  *     tags: [Groups]
@@ -347,7 +347,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/end-cycle:
+ * /api/groups/{id}/end-cycle:
  *   post:
  *     summary: Admin ends the active contribution cycle
  *     tags: [Groups]

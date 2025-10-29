@@ -4,7 +4,7 @@ const authenticate = require('../middleware/auth');
 const { createPayout } = require('../controllers/payoutController');
 
 
-router.post('/payout', authenticate, createPayout);
+router.post('/create', authenticate, createPayout);
 
 
 
@@ -20,7 +20,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /payouts/create:
+ * /api/payouts/create:
  *   post:
  *     summary: Trigger a payout for a group member
  *     tags: [Payouts]

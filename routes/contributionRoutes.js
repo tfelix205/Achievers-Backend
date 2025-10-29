@@ -17,7 +17,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /contribution:
+ * /api/contributions/contribution:
  *   post:
  *     summary: Make a contribution to a group cycle
  *     tags: [Contributions]
