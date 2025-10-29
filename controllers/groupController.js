@@ -1,7 +1,7 @@
 const { Group, Membership, User, Contribution, PayoutAccount, Cycle } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
-// 🟢 Create a new group
+//  Create a new group
 exports.createGroup = async (req, res) => {
   const t = await Group.sequelize.transaction();
   try {
@@ -65,7 +65,7 @@ exports.createGroup = async (req, res) => {
 };
 
 
-// 🟢 Add payout account for user
+//  Add payout account for user
 exports.addPayoutAccount = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -102,31 +102,31 @@ exports.addPayoutAccount = async (req, res) => {
 
 
 //  Attach user’s payout to a group
-exports.attachPayoutToGroup = async (req, res) => {
-  try {
-    const { groupId } = req.params;
-    const userId = req.user.id;
+// exports.attachPayoutToGroup = async (req, res) => {
+//   try {
+//     const { groupId } = req.params;
+//     const userId = req.user.id;
 
-    const payout = await PayoutAccount.findOne({
-      where: { userId, isDefault: true }
-    });
+//     const payout = await PayoutAccount.findOne({
+//       where: { userId, isDefault: true }
+//     });
 
-    if (!payout) {
-      return res.status(400).json({ message: 'No default payout account found.' });
-    }
+//     if (!payout) {
+//       return res.status(400).json({ message: 'No default payout account found.' });
+//     }
 
-    const group = await Group.findByPk(groupId);
-    if (!group) return res.status(404).json({ message: 'Group not found.' });
+//     const group = await Group.findByPk(groupId);
+//     if (!group) return res.status(404).json({ message: 'Group not found.' });
 
-    // Add or update group payout info (assume Group has payoutAccountId)
-    await group.update({ payoutAccountId: payout.id });
+//     // Add or update group payout info (assume Group has payoutAccountId)
+//     await group.update({ payoutAccountId: payout.id });
 
-    res.status(200).json({ message: 'Payout account linked to group successfully.' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
+//     res.status(200).json({ message: 'Payout account linked to group successfully.' });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// };
 
 
 //  Get all user’s groups
