@@ -1,11 +1,11 @@
-exports.passwordResetMail = (name, resetLink) => {
-  return `
+exports.groupCreatedMail = (name, groupName) => {
+    return `
   <!DOCTYPE html>
   <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reset Your Password - Splita</title>
+    <title>Group Created - Splita</title>
   </head>
   <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
     <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f5f5f5;">
@@ -18,15 +18,10 @@ exports.passwordResetMail = (name, resetLink) => {
               </td>
             </tr>
             <tr>
-              <td style="padding: 40px 40px 30px;">
-                <h2 style="margin: 0 0 16px; color: #1a1a1a; font-size: 24px;">Reset Your Password</h2>
-                <p style="margin: 0 0 24px; color: #666666; font-size: 16px;">Hi ${name}, we received a request to reset your password for your Splita account.</p>
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${resetLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; text-decoration: none; padding: 14px 30px; border-radius: 8px; font-size: 16px; font-weight: 600;">
-                    Reset Password
-                  </a>
-                </div>
-                <p style="margin: 24px 0 16px; color: #666666; font-size: 14px;">This link will expire in <strong>15 minutes</strong>. If you didn't request this, please ignore it.</p>
+              <td style="padding: 40px;">
+                <h2 style="margin: 0 0 16px; color: #1a1a1a; font-size: 24px;">Group Created Successfully</h2>
+                <p style="margin: 0 0 24px; color: #666666; font-size: 16px;">Hi ${name}, your contribution group <strong>${groupName}</strong> has been created successfully on Splita.</p>
+                <p style="margin: 0 0 24px; color: #666666; font-size: 16px;">You can now invite members and start a contribution cycle.</p>
               </td>
             </tr>
             <tr>

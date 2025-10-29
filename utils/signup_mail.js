@@ -29,7 +29,7 @@ exports.signupMail = (otp, name) => {
                   </td>
                 </tr>
               </table>
-              <p style="margin: 24px 0 16px; color: #666666; font-size: 14px;">This code will expire in <strong>15 minutes</strong>. If you didn’t request this, please ignore this email.</p>
+              <p style="margin: 24px 0 16px; color: #666666; font-size: 14px;">This code will expire in <strong>15 minutes</strong>. If you didn't request this, please ignore this email.</p>
             </td>
           </tr>
           <tr>

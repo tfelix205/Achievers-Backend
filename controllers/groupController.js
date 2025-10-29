@@ -42,6 +42,18 @@ exports.createGroup = async (req, res) => {
 
     await t.commit();
 
+
+    // Send an email notification to the group creator
+    const { sendMail } = require('../utils/sendgrid');
+    const { groupCreatedMail } = require('../utils/groupCreatedMail');
+    const user = await User.findByPk(userId);
+
+    await sendMail({
+      email: user.email,
+      subject: 'Group Created Successfully',
+      html: groupCreatedMail(user.name, group.name),
+    });
+
     // Check payout account
     const payoutAccount = await PayoutAccount.findOne({ where: { userId } });
 
@@ -65,7 +77,7 @@ exports.createGroup = async (req, res) => {
 };
 
 
-// 🟢 Add payout account for user
+// Add payout account for user
 exports.addPayoutAccount = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -223,6 +235,19 @@ exports.joinGroup = async (req, res) => {
       status: 'pending' 
     });
 
+     // Send an email notification of requests to join a group to the group admin
+    const { sendMail } = require('../utils/sendgrid');
+    const { joinRequestMail } = require('../utils/joinRequestMail');
+    const admin = await User.findByPk(group.adminId);
+    const joiningUser = await User.findByPk(userId);
+
+    if (admin) {
+      await sendMail({
+        email: admin.email,
+        subject: 'Group Member Request',
+        html: joinRequestMail(admin.name, group.name, joiningUser.name),
+      });
+    }
     res.status(200).json({
       message: 'Join request sent successfully. Waiting for admin approval.'
     });
@@ -359,20 +384,16 @@ exports.startCycle = async (req, res) => {
     });
 
     const { sendMail } = require('../utils/sendgrid');
+    const { cycleStartMail } = require('../utils/cycleStartMail');
 
 for (const member of group.members) {
   const user = await User.findByPk(member.id);
   await sendMail({
-    to: user.email,
+    email: user.email,
     subject: ' New Cycle Started!',
-    html: `
-      <p>Hi ${user.name},</p>
-      <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
-      <p>Please make your first contribution of <b>${group.contributionAmount}</b> as soon as possible.</p>
-    `,
+   html: cycleStartMail(user.name, group.name, group.contributionAmount),
   });
 }
-
 
     await group.update({ status: 'active' });
 

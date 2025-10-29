@@ -1,4 +1,3 @@
-
 // require('dotenv').config(); 
 // const sgMail = require('@sendgrid/mail');
 
@@ -26,15 +25,6 @@
 
 // }
 
-
-
-
-
-
-
-
-
-
 // const sendEmail = async (to, subject, html) => {
 //   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 //   try {
@@ -52,8 +42,6 @@
 // };
 
 // module.exports = sendEmail;
-
-
 
 require('dotenv').config()
 const Brevo = require('@getbrevo/brevo');
