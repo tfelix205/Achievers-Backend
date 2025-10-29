@@ -135,18 +135,21 @@ exports.getUserGroups = async (req, res) => {
     const userId = req.user.id;
 
     const groups = await Group.findAll({
-      include: [
-        {
-          association: 'members',
-          where: { id: userId },
-          through: { attributes: [] }
-        },
-        {
-          association: 'admin',
-          attributes: ['id', 'fullName', 'email']
-        }
-      ]
-    });
+  include: [
+    {
+      model: User,
+      as: 'members',
+      attributes: ['id', 'name', 'email'], // ✅ safe fields only
+      through: { attributes: [] },
+      where: { id: userId }
+    },
+    {
+      model: User,
+      as: 'admin',
+      attributes: ['id', 'name', 'email']
+    }
+  ]
+});
 
     res.status(200).json({ groups });
   } catch (error) {
@@ -333,19 +336,37 @@ exports.startCycle = async (req, res) => {
 
   try {
     const group = await Group.findByPk(id, {
-      include: [{ association: 'members', where: { status: 'active' } }],
+      include: [
+        {
+          association: 'members',
+          attributes: ['id', 'name', 'email'], 
+          through: {
+            attributes: [], 
+            where: { status: 'active' }, 
+          },
+        },
+      ],
     });
 
-    if (!group) return res.status(404).json({ message: 'Group not found.' });
-    if (group.adminId !== userId)
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found.' });
+    }
+
+    if (group.adminId !== userId) {
       return res.status(403).json({ message: 'Only admin can start a cycle.' });
+    }
 
-    const existingCycle = await Cycle.findOne({ where: { groupId: id, status: 'active' } });
-    if (existingCycle)
+    const existingCycle = await Cycle.findOne({
+      where: { groupId: id, status: 'active' },
+    });
+
+    if (existingCycle) {
       return res.status(400).json({ message: 'A cycle is already active for this group.' });
+    }
 
-    if (group.members.length < group.totalMembers)
+    if (group.members.length < group.totalMembers) {
       return res.status(400).json({ message: 'All members must be approved before starting a cycle.' });
+    }
 
     // Select first member as first payout recipient
     const firstMember = group.members[0];
@@ -358,31 +379,29 @@ exports.startCycle = async (req, res) => {
       startDate: new Date(),
     });
 
+    // Send notification to all group members
     const { sendMail } = require('../utils/sendgrid');
-
-for (const member of group.members) {
-  const user = await User.findByPk(member.id);
-  await sendMail({
-    to: user.email,
-    subject: ' New Cycle Started!',
-    html: `
-      <p>Hi ${user.name},</p>
-      <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
-      <p>Please make your first contribution of <b>${group.contributionAmount}</b> as soon as possible.</p>
-    `,
-  });
-}
-
+    for (const member of group.members) {
+      await sendMail({
+        to: member.email,
+        subject: 'New Cycle Started!',
+        html: `
+          <p>Hi ${member.name},</p>
+          <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
+          <p>Please make your first contribution of <b>${group.contributionAmount}</b> as soon as possible.</p>
+        `,
+      });
+    }
 
     await group.update({ status: 'active' });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Cycle started successfully.',
       cycle,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
