@@ -410,7 +410,7 @@ module.exports = router;
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: The ID of the user to delete
  *     responses:
  *       200:
