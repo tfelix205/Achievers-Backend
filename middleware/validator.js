@@ -64,7 +64,7 @@ exports.registerValidator = async (req, res, next) => {
 
 exports.loginValidator = async (req, res, next) => {
   const schema = Joi.object({
-    email: Joi.string().email().required().messages({
+    email: Joi.string().email().trim().lowercase().required().messages({
       'string.empty': 'Email is required',
       'string.email': 'Please provide a valid email address',
     }),
