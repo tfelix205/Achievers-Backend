@@ -1,5 +1,13 @@
 const { Group, Membership, User, Contribution, PayoutAccount, Cycle } = require('../models');
 const { v4: uuidv4 } = require('uuid');
+const nameToTitleCase = require('../helper/nameConverter');
+const { sendMail } = require('../utils/sendgrid');
+const { groupCreatedMail } = require('../utils/groupCreatedMail');
+const { joinRequestMail } = require('../utils/joinRequestMail');
+const { cycleStartedMail } = require('../utils/cycleStartedMail');
+const { contributionReceivedMail } = require('../utils/contributionReceivedMail');
+const { contributionReminderMail } = require('../utils/contributionReminderMail');
+const { cycleCompletedMail } = require('../utils/cycleCompletedMail');
 
 //  Create a new group
 exports.createGroup = async (req, res) => {
@@ -11,24 +19,34 @@ exports.createGroup = async (req, res) => {
       contributionAmount,
       contributionFrequency,
       payoutFrequency,
-      penaltyFee,
       description,
       totalMembers
     } = req.body;
 
-    // Basic validation
-    if (!groupName || !contributionAmount || !contributionFrequency) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-
+   // Validate the required fields
+ if (!groupName) {
+return res.status(400).json({ message: 'Group name is required' });
+ }
+if (!contributionAmount) {
+ return res.status(400).json({ message: 'Contribution amount is required' });
+ }
+if (!contributionFrequency) {
+return res.status(400).json({ message: 'Contribution frequency is required' });
+ }
+if (!payoutFrequency) {
+ return res.status(400).json({ message: 'Payout frequency is required' });
+ }
+if (!totalMembers) {
+ return res.status(400).json({ message: 'Total group members is required' });
+     }
+ 
     // Create group
     const group = await Group.create({
-      groupName,
+      groupName: nameToTitleCase(groupName.trim()),
       contributionAmount,
       contributionFrequency,
       payoutFrequency,
-      penaltyFee,
-      description,
+      description: description.trim(),
       totalMembers,
       adminId: userId
     }, { transaction: t });
@@ -41,6 +59,24 @@ exports.createGroup = async (req, res) => {
     }, { transaction: t });
 
     await t.commit();
+ 
+     // Send an email to the admin that the group has been created
+ const user = await User.findByPk(userId);
+ const dateString = new Date().toISOString().split('T')[0];
+
+ if (user && user.email) {
+ await sendMail({
+ email: user.email,
+subject: 'Group Created Successfully',
+html: groupCreatedMail(
+user.name,
+group.groupName,
+ group.contributionAmount,
+ group.totalMembers,
+ dateString
+ ),
+});
+}
 
     // Check payout account
     const payoutAccount = await PayoutAccount.findOne({ where: { userId } });
@@ -64,7 +100,6 @@ exports.createGroup = async (req, res) => {
   }
 };
 
-
 //  Add payout account for user
 exports.addPayoutAccount = async (req, res) => {
   try {
@@ -86,7 +121,7 @@ exports.addPayoutAccount = async (req, res) => {
     const payout = await PayoutAccount.create({
       userId,
       bankName,
-      accountNumber,
+      accountNumber: accountNumber.trim(),
       isDefault: !!isDefault
     });
 
@@ -158,8 +193,6 @@ exports.getUserGroups = async (req, res) => {
   }
 };
 
-
-
 //  Generate invite link (Admin only)
 exports.generateInviteLink = async (req, res) => {
   try {
@@ -186,9 +219,6 @@ exports.generateInviteLink = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-
-
 
 //  Request to join group via invite link
 exports.joinGroup = async (req, res) => {
@@ -218,13 +248,30 @@ exports.joinGroup = async (req, res) => {
       });
     }
 
-   
     await Membership.create({
       userId,
       groupId: id,
       role: 'member',
       status: 'pending' 
     });
+
+      // Send an email to the group admin to notify them of the join request
+ const admin = await User.findByPk(group.adminId);
+const user = await User.findByPk(userId);
+   const dateString = new Date().toISOString().split('T')[0];
+
+   if (admin && admin.email && user) {
+     await sendMail({
+       email: admin.email,
+       subject: 'Request to Join Your Group',
+       html: joinRequestMail(
+         admin.name,
+         user.name,
+         group.groupName,
+         dateString
+       ),
+     });
+   }
 
     res.status(200).json({
       message: 'Join request sent successfully. Waiting for admin approval.'
@@ -269,8 +316,6 @@ exports.manageJoinRequest = async (req, res) => {
   }
 };
 
-
-
 //  Get group details
 exports.getGroupDetails = async (req, res) => {
   try {
@@ -308,7 +353,7 @@ exports.getGroupSummary = async (req, res) => {
 
     if (!group) return res.status(404).json({ message: 'Group not found.' });
 
-    const totalMembers = group.members.length;
+       const totalMembers = group.members.length;
     const totalContributions = group.contributions.reduce((sum, c) => sum + c.amount, 0);
 
     const goalPerMember = group.contributionAmount || 10000;
@@ -381,19 +426,16 @@ exports.startCycle = async (req, res) => {
       startDate: new Date(),
     });
 
-    // Send notification to all group members
-    const { sendMail } = require('../utils/sendgrid');
-    for (const member of group.members) {
-      await sendMail({
-        to: member.email,
-        subject: 'New Cycle Started!',
-        html: `
-          <p>Hi ${member.name},</p>
-          <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
-          <p>Please make your first contribution of <b>${group.contributionAmount}</b> as soon as possible.</p>
-        `,
-      });
-    }
+   // Send an email notification to all group members that the cycle has started
+for (const member of group.members) {
+ if (member.email) {
+   await sendMail({
+     email: member.email,
+     subject: 'New Ajo Cycle Started',
+     html: cycleStartedMail(member.name, group.groupName, group.contributionAmount),
+   });
+ }
+}
 
     await group.update({ status: 'active' });
 
@@ -401,11 +443,13 @@ exports.startCycle = async (req, res) => {
       message: 'Cycle started successfully.',
       cycle,
     });
+
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 
 // member to make a contribution
 exports.makeContribution = async (req, res) => {
@@ -441,6 +485,18 @@ exports.makeContribution = async (req, res) => {
       amount,
       status: 'paid',
     });
+
+       // Send an email to the user when contribution is received
+    const user = await User.findByPk(userId);
+    const dateString = new Date().toISOString().split('T')[0];
+
+    if (user && user.email) {
+      await sendMail({
+        email: user.email,
+        subject: 'Contribution Received',
+        html: contributionReceivedMail(user.name, group.groupName, amount, dateString),
+      });
+    }
 
     // Check if all members have contributed
     const allContributions = await Contribution.count({ where: { cycleId: cycle.id } });
@@ -514,6 +570,29 @@ exports.endCycle = async (req, res) => {
 
     await cycle.update({ status: 'completed', endDate: new Date() });
     await group.update({ status: 'completed' });
+
+     // Send an email to group members that the cycle has been completed
+   const activeMembers = await Membership.findAll({
+     where: { groupId: id, status: 'active' },
+     include: [{ model: User, attributes: ['name', 'email'] }],
+   });
+
+   const dateString = new Date().toISOString().split('T')[0];
+
+   for (const member of activeMembers) {
+     if (member.User && member.User.email) {
+       await sendMail({
+         email: member.User.email,
+         subject: 'Cycle Completed',
+         html: cycleCompletedMail(
+           member.User.name,
+           group.groupName,
+           group.contributionAmount,
+           dateString
+         ),
+       });
+     }
+   }
 
     res.status(200).json({ message: 'Cycle ended successfully.' });
   } catch (error) {
@@ -740,14 +819,14 @@ exports.endCycle = async (req, res) => {
 //   try {
 //     const { id } = req.params;
 
-//     // get group + contributions
+//     // get group contributions
 //     const group = await Group.findByPk(id, {
 //       include: [{ association: 'contributions' }, { association: 'members' }]
 //     });
 //     if (!group) return res.status(404).json({ message: 'Group not found' });
 
 //     const totalMembers = group.members.length;
-//     const totalContributions = group.contributions.reduce((sum, c) => sum + c.amount, 0);
+//     const totalContributions = group.contributions.reduce((sum, c) => sum c.amount, 0);
 
 //     // Example: fixed cycle goal — can be dynamic later
 //     const goalPerMember = 10000; // N10,000 each

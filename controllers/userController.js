@@ -35,15 +35,14 @@ exports.register = async (req, res) => {
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     const newUser = await User.create({
-      name: nameToTitleCase(name),
-      email,
-      phone,
+      name: nameToTitleCase(name).trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
       password: hash,
       otp,
       otpExpiry,
       isVerified: false
     });
-
    
     await sendMail({
       email: newUser.email,
@@ -57,8 +56,6 @@ exports.register = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-
-
 
 
 exports.verifyEmail = async (req, res) => {
@@ -80,13 +77,13 @@ exports.verifyEmail = async (req, res) => {
             });
         }
 
-        if (user.otp !== otp) {
+       if (user.otp?.toString() !== otp.toString()) {
             return res.status(400).json({
                 message: "Invalid OTP"
             });
         }
 
-        if (user.otpExpiry < Date.now()) {
+         if (new Date(user.otpExpiry) < new Date()) {
             return res.status(400).json({
                 message: "OTP has expired"
             });
@@ -146,7 +143,7 @@ exports.resendOtp = async (req, res) => {
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes from now
+          const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
 
         user.otp = otp;
         user.otpExpiry = otpExpiry;
@@ -177,10 +174,10 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ message: 'Invalid email or password' });
+    if (!user) return res.status(404).json({ message: 'Invalid credentials' });
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ message: 'Invalid email or password' });
+    if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
 
     if (!user.isVerified) {
       return res.status(403).json({ message: 'Email not verified. Please verify your email before logging in.' });
