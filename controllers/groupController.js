@@ -37,7 +37,7 @@ exports.createGroup = async (req, res) => {
     await Membership.create({
       userId,
       groupId: group.id,
-      status: 'accept',
+      status: 'active',
       role: 'admin'
     }, { transaction: t });
 

@@ -122,87 +122,85 @@ exports.resetPasswordValidator = async (req, res, next) => {
     }
 }
 
+
+
 exports.groupRegisterValidator = async (req, res, next) => {
+  const Schema = Joi.object({
+    groupName: Joi.string()
+      .min(2)
+      .trim()
+      .required()
+      .pattern(/^[A-Za-z\s]+$/)
+      .messages({
+        'string.empty': 'Group Name is required',
+        'string.min': 'Group Name should have at least 2 characters',
+        'string.pattern.base': 'Name can only contain letters and spaces',
+      }),
 
-    const Schema = Joi.object({
+    contributionAmount: Joi.number() // 🧠 note: fixed typo "constributionAmount"
+      .precision(2)
+      .positive()
+      .required()
+      .messages({
+        'number.base': 'Contribution Amount must be a number',
+        'number.positive': 'Contribution Amount must be greater than zero (0)',
+        'any.required': 'Contribution Amount is required',
+        'number.precision': 'Contribution amount can only have up to 2 decimal places',
+      }),
 
-        groupName: Joi.string().min(2).trim().required().pattern(/^[A-Za-z\s]+$/).messages({
+    contributionFrequency: Joi.string()
+      .valid('daily', 'weekly', 'monthly')
+      .lowercase()
+      .trim()
+      .required()
+      .messages({
+        'string.empty': 'Contribution Frequency requires a value',
+        'string.base': 'Contribution Frequency must be a text value',
+        'any.only': 'Contribution frequency can only be (daily, weekly or monthly)',
+        'any.required': 'Contribution frequency is required',
+      }),
 
-            'string.empty': ' Group Name is required',
+    payoutFrequency: Joi.string()
+      .valid('daily', 'weekly', 'monthly')
+      .lowercase()
+      .trim()
+      .required()
+      .messages({
+        'string.empty': 'Payout Frequency requires a value',
+        'string.base': 'Payout Frequency must be a text value',
+        'any.only': 'Payout frequency can only be (daily, weekly or monthly)',
+        'any.required': 'Payout frequency is required',
+      }),
 
-            
-            'string.min': 'Group Name should have at least 2 characters',
+    description: Joi.string()
+      .trim()
+      .allow('')
+      .max(500)
+      .messages({
+        'string.base': 'Description must be a text',
+        'string.max': 'Description cannot exceed 500 characters',
+      }),
 
-            'string.pattern.base': 'Name can only contain letters and spaces'
-        }),
-
-        constributionAmount: Joi.number().precision(2).positive().required().messages({
-            
-            'number.base': 'Contribution Amount must be a number',
-
-            'number.positive': 'Contribution Amount must be greater than zero (0)',
-
-            'any.required':'Contribution Amount is required',
-            
-            'number.precision': 'Contribution amount can only have up to 2 decimal places'
-        }),
-
-        ContributionFrequency: Joi.string().valid('daily', 'weekly', 'monthly').lowercase().trim().required().messages({
-
-            'string.empty': 'Contribution Frequency requires a value',
-
-            'string.base': 'Contribution Frequency must be a text value',
-
-            'any.only': 'Contribution frequency can only be (daily, weekly or monthly)',
-
-            'any.required': 'Contribution frequency is required'
-
-        }),
-
-
-        payoutFrequency: Joi.string().valid('daily', 'weekly', 'monthly').lowercase().trim().required().messages({
-
-            'string.empty': 'payout Frequency requires a value',
-
-            'string.base': 'payout Frequency must be a text value',
-
-            'any.only': 'payout frequency can only be (daily, weekly or monthly)',
-
-            'any.required': 'payout frequency is required'
-
-        }),
-
-
-       description: Joi.string().trim().allow('').max(500).messages({
-        'string.base': 'description must be a text',
-
-        'string.max': 'description can not exceed 500 characters'
-       }),
-
-
-       totalMembers: Joi.number().integer().min().max().required().message({
+    totalMembers: Joi.number()
+      .integer()
+      .min(2)
+      .max(12)
+      .required()
+      .messages({
         'number.base': 'Total members must be a number',
-        'number.integer': 'total number must be a whole number',
-        'number.min': 'Total members can not be less than 2',
-        'number.max': 'Total members can not be more than 12',
-        'any.required': 'Total members is required'     })
+        'number.integer': 'Total number must be a whole number',
+        'number.min': 'Total members cannot be less than 2',
+        'number.max': 'Total members cannot be more than 12',
+        'any.required': 'Total members is required',
+      }),
+  });
 
-       
-
-        
+  try {
+    await Schema.validateAsync(req.body, { abortEarly: false });
+    next();
+  } catch (error) {
+    return res.status(400).json({
+      message: error.details.map((err) => err.message),
     });
-
-    try {
-        await Schema.validateAsync(req.body, { abortEarly: false });
-
-        next();
-
-    } catch (error) {
-
-        return res.status(400).json({
-            message:error.details.map(err => err.message)
-            
-        });
-    }
-
+  }
 };
