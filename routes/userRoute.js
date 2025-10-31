@@ -12,6 +12,7 @@ router.post('/login', loginValidator, userController.login);
 router.get('/all-users', userController.getAllUsers);
 router.post('/forgot-password', userController.forgotPassword);
 router.post('/reset-password', resetPasswordValidator, userController.resetPassword);
+router.get('/getuser/:id', userController.getOneUser);
 
 
 // Protected routes
@@ -582,4 +583,69 @@ module.exports = router;
  *                   example: Something went wrong on the server
  */
 
+
+/**
+ * @swagger
+ * /getuser/{id}:
+ *   get:
+ *     summary: Get details of a single user
+ *     description: Retrieves a specific user's basic details by their ID.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []   # Requires JWT authentication if your API uses it
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: The UUID or numeric ID of the user to retrieve.
+ *         schema:
+ *           type: string
+ *           example: "f4b1dce0-31b9-4f0b-a5b4-2b1a6e63a0f2"
+ *     responses:
+ *       200:
+ *         description: User retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "f4b1dce0-31b9-4f0b-a5b4-2b1a6e63a0f2"
+ *                     name:
+ *                       type: string
+ *                       example: "John Doe"
+ *                     email:
+ *                       type: string
+ *                       example: "john@example.com"
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User not found
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Internal server error
+ *                 error:
+ *                   type: string
+ *                   example: Database connection failed
+ */
 

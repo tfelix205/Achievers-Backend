@@ -17,8 +17,10 @@ exports.makeContribution = async (req, res) => {
 
 
         const member = await Membership.findOne({
-            where: { groupId, userId }
+            where: { groupId, userId, status: 'accept' }
         });
+
+        
 
         if (!member) {
             return res.status(403).json({

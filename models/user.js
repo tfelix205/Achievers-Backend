@@ -37,6 +37,11 @@ module.exports = (sequelize, DataTypes) => {
      otpExpiry: {
           type: DataTypes.DATE,
           allowNull: true
+     },
+     profilePicture: {
+          type: DataTypes.STRING,
+          allowNull: true,
+             
      }
   });
   return User;

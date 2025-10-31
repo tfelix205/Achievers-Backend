@@ -11,7 +11,6 @@ exports.createGroup = async (req, res) => {
       contributionAmount,
       contributionFrequency,
       payoutFrequency,
-      penaltyFee,
       description,
       totalMembers
     } = req.body;
@@ -20,15 +19,16 @@ exports.createGroup = async (req, res) => {
     if (!groupName || !contributionAmount || !contributionFrequency) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+    const newPenaltyFee = contributionAmount * 0.05; // 5% penalty
 
     // Create group
     const group = await Group.create({
-      groupName,
+      groupName: groupName.trim().toLowerCase(),
       contributionAmount,
-      contributionFrequency,
-      payoutFrequency,
-      penaltyFee,
-      description,
+      contributionFrequency: contributionFrequency.trim().toLowerCase(),
+      payoutFrequency: payoutFrequency.trim().toLowerCase(),
+      penaltyFee: newPenaltyFee,
+      description: description.trim(),
       totalMembers,
       adminId: userId
     }, { transaction: t });
@@ -37,6 +37,7 @@ exports.createGroup = async (req, res) => {
     await Membership.create({
       userId,
       groupId: group.id,
+      status: 'accept',
       role: 'admin'
     }, { transaction: t });
 
@@ -85,8 +86,8 @@ exports.addPayoutAccount = async (req, res) => {
 
     const payout = await PayoutAccount.create({
       userId,
-      bankName,
-      accountNumber,
+      bankName: bankName.trim().toLowerCase(),
+      accountNumber: accountNumber.trim(),
       isDefault: !!isDefault
     });
 

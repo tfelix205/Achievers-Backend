@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authenticate = require('../middleware/auth');
-const { 
+const {groupRegisterValidator} = require('../middleware/validator')
+ const { 
   createGroup,
   addPayoutAccount,
   attachPayoutToGroup,
@@ -17,7 +18,7 @@ const {
 } = require('../controllers/groupController');
 
 
-router.post('/create', authenticate, createGroup);
+router.post('/create', authenticate, groupRegisterValidator, createGroup);
 router.get('/all', authenticate, getUserGroups);
 router.get('/:id', authenticate, getGroupDetails);
 router.get('/:id/invite', authenticate, generateInviteLink);
@@ -41,21 +42,78 @@ module.exports = router;
 
 
 
-
-
-
 /**
  * @swagger
  * tags:
  *   name: Groups
- *   description: Group and cycle management
+ *   description: Group management, membership, and contribution operations
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Group:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         groupName:
+ *           type: string
+ *         description:
+ *           type: string
+ *         contributionAmount:
+ *           type: number
+ *         contributionFrequency:
+ *           type: string
+ *           example: "weekly"
+ *         payoutFrequency:
+ *           type: string
+ *           example: "monthly"
+ *         totalMembers:
+ *           type: integer
+ *         status:
+ *           type: string
+ *           enum: [pending, active, completed]
+ *         adminId:
+ *           type: string
+ *           format: uuid
+ *     PayoutAccount:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         bankName:
+ *           type: string
+ *         accountNumber:
+ *           type: string
+ *         isDefault:
+ *           type: boolean
+ *     Contribution:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         userId:
+ *           type: string
+ *         groupId:
+ *           type: string
+ *         amount:
+ *           type: number
+ *         status:
+ *           type: string
+ *           enum: [pending, paid]
+ *         createdAt:
+ *           type: string
+ *           format: date-time
  */
 
 /**
  * @swagger
  * /api/groups/create:
  *   post:
- *     summary: Create a new Ajo group
+ *     summary: Create a new group
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -72,28 +130,25 @@ module.exports = router;
  *             properties:
  *               groupName:
  *                 type: string
- *                 example: "Team Alpha"
  *               contributionAmount:
  *                 type: number
- *                 example: 5000
  *               contributionFrequency:
  *                 type: string
- *                 example: "weekly"
+ *                 example: weekly
  *               payoutFrequency:
  *                 type: string
- *                 example: "monthly"
- *               penaltyFee:
- *                 type: number
- *                 example: 200
- *               description:
- *                 type: string
- *                 example: "Weekly savings group for our tech team."
+ *                 example: monthly
  *               totalMembers:
  *                 type: integer
- *                 example: 10
+ *               description:
+ *                 type: string
  *     responses:
  *       201:
  *         description: Group created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Group'
  *       400:
  *         description: Missing required fields
  *       500:
@@ -104,7 +159,7 @@ module.exports = router;
  * @swagger
  * /api/groups/all:
  *   get:
- *     summary: Get all groups the user belongs to
+ *     summary: Get all groups for the authenticated user
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -119,20 +174,24 @@ module.exports = router;
  * @swagger
  * /api/groups/{id}:
  *   get:
- *     summary: Get detailed information about a group
+ *     summary: Get details of a specific group
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
+ *         description: Group ID
  *         required: true
  *         schema:
  *           type: string
- *         description: Group ID
  *     responses:
  *       200:
- *         description: Group details
+ *         description: Group details retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Group'
  *       404:
  *         description: Group not found
  *       500:
@@ -143,17 +202,17 @@ module.exports = router;
  * @swagger
  * /api/groups/{id}/invite:
  *   get:
- *     summary: Generate an invite link for a group (Admin only)
+ *     summary: Generate an invite link for the group (Admin only)
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
+ *         description: Group ID
  *         required: true
  *         schema:
  *           type: string
- *         description: Group ID
  *     responses:
  *       200:
  *         description: Invite link generated successfully
@@ -167,88 +226,28 @@ module.exports = router;
  * @swagger
  * /api/groups/{id}/join:
  *   post:
- *     summary: Request to join a group using invite link
+ *     summary: Request to join a group using an invite link
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
+ *       - name: id
+ *         in: path
  *         description: Group ID
- *       - in: query
- *         name: invite
  *         required: true
  *         schema:
  *           type: string
+ *       - name: invite
+ *         in: query
  *         description: Invite code
+ *         required: true
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Join request sent successfully
+ *         description: Join request sent
  *       400:
- *         description: Invalid invite or missing payout account
- *       404:
- *         description: Group not found
- */
-
-/**
- * @swagger
- * /api/groups/{groupId}/join-request/{memberId}:
- *   post:
- *     summary: Approve or reject a join request (Admin only)
- *     tags: [Groups]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: groupId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: memberId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               action:
- *                 type: string
- *                 enum: [approve, reject]
- *                 example: approve
- *     responses:
- *       200:
- *         description: Join request handled successfully
- *       403:
- *         description: Only admin can manage requests
- *       404:
- *         description: Group or membership not found
- */
-
-/**
- * @swagger
- * /api/groups/{id}/summary:
- *   get:
- *     summary: Get financial summary of a group
- *     tags: [Groups]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Group financial summary
+ *         description: Invalid or expired invite link
  *       404:
  *         description: Group not found
  */
@@ -257,7 +256,7 @@ module.exports = router;
  * @swagger
  * /api/groups/payout-account:
  *   post:
- *     summary: Add payout account for a user
+ *     summary: Add a new payout account for the user
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -273,31 +272,92 @@ module.exports = router;
  *             properties:
  *               bankName:
  *                 type: string
- *                 example: "Access Bank"
  *               accountNumber:
  *                 type: string
- *                 example: "0123456789"
  *               isDefault:
  *                 type: boolean
- *                 example: true
  *     responses:
  *       200:
  *         description: Payout account added successfully
  *       400:
- *         description: Validation error
+ *         description: Missing bank details
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/join-request/{memberId}:
+ *   post:
+ *     summary: Approve or reject a group join request (Admin only)
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: groupId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - name: memberId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject]
+ *     responses:
+ *       200:
+ *         description: Join request handled successfully
+ *       403:
+ *         description: Only admin can manage join requests
+ *       404:
+ *         description: Group or request not found
+ */
+
+/**
+ * @swagger
+ * /api/groups/{id}/summary:
+ *   get:
+ *     summary: Get group financial summary
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         description: Group ID
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Group summary retrieved successfully
+ *       404:
+ *         description: Group not found
  */
 
 /**
  * @swagger
  * /api/groups/{id}/start-cycle:
  *   post:
- *     summary: Admin starts a new contribution cycle
+ *     summary: Start a new contribution cycle (Admin only)
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
  *         required: true
  *         schema:
  *           type: string
@@ -305,9 +365,11 @@ module.exports = router;
  *       200:
  *         description: Cycle started successfully
  *       400:
- *         description: Cycle already active or not enough members
+ *         description: A cycle is already active or not enough members
  *       403:
- *         description: Only admin can start cycle
+ *         description: Only admin can start a cycle
+ *       404:
+ *         description: Group not found
  */
 
 /**
@@ -319,8 +381,8 @@ module.exports = router;
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
  *         required: true
  *         schema:
  *           type: string
@@ -330,41 +392,48 @@ module.exports = router;
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - amount
  *             properties:
  *               amount:
  *                 type: number
- *                 example: 5000
  *     responses:
  *       200:
  *         description: Contribution successful
  *       400:
  *         description: Already contributed or invalid amount
  *       403:
- *         description: Not a member
+ *         description: User not a member
  *       404:
- *         description: Group or cycle not found
+ *         description: Group not found
  */
 
 /**
  * @swagger
  * /api/groups/{id}/end-cycle:
  *   post:
- *     summary: Admin ends the active contribution cycle
+ *     summary: End an active cycle (Admin only)
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
  *         required: true
  *         schema:
  *           type: string
  *     responses:
  *       200:
  *         description: Cycle ended successfully
+ *       400:
+ *         description: No active cycle found
  *       403:
  *         description: Only admin can end cycle
  *       404:
- *         description: Group or cycle not found
+ *         description: Group not found
  */
+
+
+
+
 
