@@ -1,4 +1,5 @@
-const { Group, Membership, User, Contribution, PayoutAccount, Cycle } = require('../models');
+const { where } = require('sequelize');
+const { Group, Membership, User, Contribution, PayoutAccount, Cycle, payout } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
 //  Create a new group
@@ -102,32 +103,32 @@ exports.addPayoutAccount = async (req, res) => {
 };
 
 
-//  Attach user’s payout to a group
-// exports.attachPayoutToGroup = async (req, res) => {
-//   try {
-//     const { groupId } = req.params;
-//     const userId = req.user.id;
+ //Attach user’s payout to a group
+exports.attachPayoutToGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
 
-//     const payout = await PayoutAccount.findOne({
-//       where: { userId, isDefault: true }
-//     });
+    const payout = await PayoutAccount.findOne({
+      where: { userId, isDefault: true }
+    });
 
-//     if (!payout) {
-//       return res.status(400).json({ message: 'No default payout account found.' });
-//     }
+    if (!payout) {
+      return res.status(400).json({ message: 'No default payout account found.' });
+    }
 
-//     const group = await Group.findByPk(groupId);
-//     if (!group) return res.status(404).json({ message: 'Group not found.' });
+    const group = await Group.findByPk(groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found.' });
 
-//     // Add or update group payout info (assume Group has payoutAccountId)
-//     await group.update({ payoutAccountId: payout.id });
+    // Add or update group payout info (assume Group has payoutAccountId)
+    await group.update({ payoutAccountId: payout.id });
 
-//     res.status(200).json({ message: 'Payout account linked to group successfully.' });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// };
+    res.status(200).json({ message: 'Payout account linked to group successfully.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
 
 
 //  Get all user’s groups
@@ -211,7 +212,7 @@ exports.joinGroup = async (req, res) => {
     if (existing) return res.status(400).json({ message: 'You are already a member of this group.' });
 
  
-    const payout = await PayoutAccount.findOne({ where: { userId } });
+    const payout = await PayoutAccount.findOne({ where: { userId, isDefault: true } });
     if (!payout) {
       return res.status(400).json({
         message: 'You must set up a payout account before joining a group.',
@@ -224,7 +225,8 @@ exports.joinGroup = async (req, res) => {
       userId,
       groupId: id,
       role: 'member',
-      status: 'pending' 
+      status: 'pending',
+      payoutAccountId: payout.id 
     });
 
     res.status(200).json({
@@ -365,10 +367,14 @@ exports.startCycle = async (req, res) => {
       return res.status(400).json({ message: 'A cycle is already active for this group.' });
     }
 
-    if ((group.members.length + 1 ) < group.totalMembers) {
-      console.log(group.members.length, group.totalMembers);
+    const activeMembersCount = await Membership.count({
+      where: { groupId: id, status: 'active'}
+    });
+
+    if (activeMembersCount  < group.totalMembers) {
+      console.log(activeMembersCount, group.totalMembers);
       
-      return res.status(400).json({ message: 'All members must be approved before starting a cycle.' });
+      return res.status(400).json({ message: `Only ${activeMemberCount} of ${group.totalMembers} members approved. Cannot start cycle.` });
     }
 
     // Select first member as first payout recipient
@@ -410,82 +416,135 @@ exports.startCycle = async (req, res) => {
 
 // member to make a contribution
 exports.makeContribution = async (req, res) => {
-  const userId = req.user.id;
-  const { id } = req.params;
-  const { amount } = req.body;
-
+  const t = await sequelize.transaction();
+  
   try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { amount } = req.body;
+
     const group = await Group.findByPk(id);
-    if (!group) return res.status(404).json({ message: 'Group not found.' });
+    if (!group) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Group not found.' });
+    }
 
     const cycle = await Cycle.findOne({ where: { groupId: id, status: 'active' } });
-    if (!cycle) return res.status(400).json({ message: 'No active cycle for this group.' });
+    if (!cycle) {
+      await t.rollback();
+      return res.status(400).json({ message: 'No active cycle for this group.' });
+    }
 
-    // verify member
+    // Verify member
     const membership = await Membership.findOne({
       where: { userId, groupId: id, status: 'active' },
     });
-    if (!membership) return res.status(403).json({ message: 'You are not a member of this group.' });
+    if (!membership) {
+      await t.rollback();
+      return res.status(403).json({ message: 'You are not a member of this group.' });
+    }
 
-    // check contribution
+    // Check contribution
     const existing = await Contribution.findOne({ where: { userId, cycleId: cycle.id } });
-    if (existing) return res.status(400).json({ message: 'Already contributed this round.' });
+    if (existing) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Already contributed this round.' });
+    }
 
-    // Penalty for underpayment or late payment
-    const expected = group.contributionAmount;
-    const penalty = amount < expected ? group.penaltyFee : 0;
+    // Penalty / Validation
+    const expectedAmount = parseFloat(group.contributionAmount);
+    const paidAmount = parseFloat(amount);
 
-    const contribution = await Contribution.create({
-      userId,
-      groupId: id,
-      cycleId: cycle.id,
-      amount,
-      status: 'paid',
-    });
+    if (Math.abs(paidAmount - expectedAmount) > 0.01) {
+      await t.rollback();
+      return res.status(400).json({
+        message: `Contribution amount must be ${expectedAmount}. You sent ${paidAmount}`,
+      });
+    }
+
+    const penalty = paidAmount < expectedAmount ? group.penaltyFee : 0;
+
+    // Record contribution
+    const contribution = await Contribution.create(
+      {
+        userId,
+        groupId: id,
+        cycleId: cycle.id,
+        amount,
+        status: 'paid',
+        penaltyFee: penalty,
+        contributionDate: new Date(),
+      },
+      { transaction: t }
+    );
 
     // Check if all members have contributed
     const allContributions = await Contribution.count({ where: { cycleId: cycle.id } });
     const activeMembers = await Membership.count({ where: { groupId: id, status: 'active' } });
 
-    if (allContributions === activeMembers) {
-      // Trigger payout
-      await handlePayout(cycle, group);
+    if (allContributions === activeMembers && cycle.status === 'active') {
+      try {
+        await handlePayoutAndRotate(cycle.id, group.id);
+      } catch (error) {
+        console.error('Payout rotation error:', error);
+      }
     }
 
-    res.status(200).json({
+    await t.commit();
+
+    return res.status(200).json({
       message: 'Contribution successful.',
       contribution,
       penaltyApplied: penalty > 0,
     });
+
   } catch (error) {
+    await t.rollback();
     console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
+
 // handle payout and cycle rotation
-exports.handlePayout = async (cycle, group) => {
+exports.handlePayoutAndRotate = async (cycleId, groupId) => {
+ const cycle = await cycle.findByPk(cycleId, { include: [{association: 'group'}]});
+
+ const group = await group.findByPk(groupId);
+
+  if (!cycle || !group) {
+    throw new Error('Cycle or Group not found for payout rotation.');
+  }
+
   // Calculate total amount contributed
-  const contributions = await Contribution.findAll({ where: { cycleId: cycle.id } });
+  const contributions = await Contribution.findAll({ where: { cycleId} });
   const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+  
+  // Deduct commission fee (which is  2%)  abi ?
+  const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
+  const finalAmount = totalAmount - commissionFee;
 
   // Pay current member 
-  await Payout.create({
+  await payout.create({
     userId: cycle.activeMemberId,
     groupId: group.id,
     cycleId: cycle.id,
-    amount: totalAmount,
+    amount: `initial payout: ${totalAmount}, commission: ${commissionFee}, total payout: ${finalAmount}`,
+    penaltyFee: 0,
+    status: 'completed',
     payoutDate: new Date(),
-    status: 'completed'
   });
 
   // Move to next member
-  const members = await Membership.findAll({ where: { groupId: group.id, status: 'active' } });
+  const members = await Membership.findAll({ where: { groupId: group.id, status: 'active' }, include: [{model: User, as: 'User'}],
+    order: [['createdAt', 'ASC']]
+  });
+
   const currentIndex = members.findIndex(m => m.userId === cycle.activeMemberId);
   const nextMember = members[currentIndex + 1];
 
   if (nextMember) {
-    // Rotate to next member
+    // Rotate to next member , if there is one
     await cycle.update({
       currentRound: cycle.currentRound + 1,
       activeMemberId: nextMember.userId,
@@ -493,9 +552,41 @@ exports.handlePayout = async (cycle, group) => {
 
     // Clear contributions for next round
     await Contribution.destroy({ where: { cycleId: cycle.id } });
+    
+     for (const member of members) {
+      await sendMail({
+        to: member.user.email,
+        subject: `Round ${cycle.currentRound} Started`,
+        html: `
+          <p>Hi ${member.user.name},</p>
+          <p>Round ${cycle.currentRound} has started.</p>
+          <p>Next recipient: <b>${nextMember.user.name}</b></p>
+          <p>Please contribute <b>${group.contributionAmount}</b>.</p>
+        `
+      });
+    }
+
   } else {
-    // No next member → end cycle
-    await endCycle(cycle.id);
+    //  if No next member then we can share the grace and end cycle
+    // await endCycle(cycle.id);
+    await cycle.update({ 
+      status: 'completed',
+      endDate: new Date()
+    });
+    await group.update({ status: 'completed'});
+    const { sendMail } = require('../utils/sendgrid');
+    for (const member of members) {
+      await sendMail({
+        to: member.user.email,
+        subject: 'Cycle Completed!',
+        html: `
+          <p>Hi ${member.user.name},</p>
+          <p>The cycle for <b>${group.groupName}</b> has completed!</p>
+          <p>All members have received their payout.</p>
+        `
+      });
+    }
+
   }
 };
 

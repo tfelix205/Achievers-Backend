@@ -79,7 +79,8 @@ exports.sendMail = async (details) => {
     headers: {
       'api-key': process.env.BREVO_API_KEY,
       'Content-Type': 'application/json'
-    }
+    },
+    timeout: 10000,
    });
 
    console.log("Email sent successfully:", details.email);

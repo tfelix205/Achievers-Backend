@@ -59,6 +59,19 @@ Group.belongsToMany(User, { through: Membership, foreignKey: 'groupId', as: 'mem
 // Group → Admin (1-to-1 with User)
 Group.belongsTo(User, { foreignKey: 'adminId', as: 'admin' });
 
+// membership
+Membership.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Membership.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+User.hasMany(Membership, { foreignKey: 'userId', as: 'memberships' });
+Group.hasMany(Membership, { foreignKey: 'groupId', as: 'memberships' });
+Membership.hasMany(Contribution, { foreignKey: 'memberId', as: 'contributions' });
+Contribution.belongsTo(Membership, { foreignKey: 'memberId', as: 'member' });
+
+
+// user -> group (1-to-many)
+User.hasMany(Group, { foreignKey: 'adminId', as: 'createdGroups' });
+
+
 // User → PayoutAccounts
 User.hasMany(PayoutAccount, { foreignKey: 'userId', as: 'payoutAccounts' });
 PayoutAccount.belongsTo(User, { foreignKey: 'userId', as: 'user' });

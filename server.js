@@ -29,7 +29,7 @@ app.use('/api/payouts', payoutRoutes);
 
 
 
-sequelize.sync({alter:true}).then(() => {
+sequelize.sync().then(() => {
   console.log('Models synced successfully.');
   app.listen(PORT, () =>
     console.log(`Server running on http://localhost:${PORT} `, `and https://splita.onrender.com`)

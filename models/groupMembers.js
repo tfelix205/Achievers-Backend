@@ -23,6 +23,15 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'pending'
     },
 
+    payoutAccountId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: {
+            model: 'payout_accounts',
+            key: 'id'
+        }
+    }
+
   }, {
     tableName: 'memberships',
     timestamps: true,

@@ -29,6 +29,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.UUID, // must match Cycle.cycleId  or however chisom named it
       allowNull: false,
     },
+    penaltyFee: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0
+    }
   }, {
     tableName: 'contributions',
     timestamps: true,

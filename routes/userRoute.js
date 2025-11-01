@@ -16,7 +16,7 @@ router.get('/getuser/:id', userController.getOneUser);
 
 
 // Protected routes
-router.get('/profile', auth, userController.profile);
+router.get('/profile', auth, userController.getProfile);
 router.delete('/delete-account/:id',  userController.deleteUser);
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
-const {User} = require('../models');
+const {User, Group} = require('../models');
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
 const { sendMail } = require('../utils/sendgrid');
@@ -44,6 +44,14 @@ exports.register = async (req, res) => {
       isVerified: false
     });
 
+    const  response = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      
+      
+    };
+
    
     await sendMail({
       email: newUser.email,
@@ -51,7 +59,7 @@ exports.register = async (req, res) => {
       html:signupMail(otp, newUser.name)
     });
 
-    res.status(201).json({ message: 'User registered successfully', data: newUser });
+    res.status(201).json({ message: 'User registered successfully', data: response });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -164,7 +172,7 @@ exports.resendOtp = async (req, res) => {
             email: user.email
         });
 
-    } catch {
+    } catch (error) {
         res.status(500).json({
             message: 'Internal server error',
             error: error.message
@@ -196,6 +204,8 @@ exports.login = async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
+      verified: user.isVerified,
       profilePicture: user.profilePicture
       
       
@@ -207,17 +217,34 @@ exports.login = async (req, res) => {
 };
 
 // GET PROFILE
-exports.profile = async (req, res) => {
-  try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] },
-      include: db.Wallet,
-    });
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
+exports.getProfile = async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      const user = await User.findByPk(userId, {
+        attributes: { exclude: ['password', 'otp', 'otpExpiry'] },
+        include: [
+          {
+            model: Group,
+            as: 'createdGroups',
+            attributes: ['id', 'groupName', 'status']
+          }
+        ]
+      });
+
+      res.json({
+        success: true,
+        data: user
+      });
+    } catch (error) {
+      console.error('Get profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch profile',
+        error: error.message
+      });
+    }
+  },
 
 
 exports.getAllUsers = async (req, res) => {
@@ -299,8 +326,8 @@ exports.forgotPassword = async (req, res) => {
 
     
     return res.status(200).json({
-      message: "Reset password OTP code sent successfully. check your mail",
-      otp
+      message: "Reset password OTP code sent successfully. check your mail"
+      
 
     })
 
@@ -329,8 +356,7 @@ exports.resetPassword = async (req, res) => {
         })
     }
 
-    // Find user by the otp being stored in the user database
-    const user = await User.findOne({ where: { otp } });
+      const user = await User.findOne({ where: { otp } });
     
     if (!user) {
         return res.status(400).json({
