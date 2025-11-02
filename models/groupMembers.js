@@ -22,7 +22,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('pending', 'active', 'rejected'),
       defaultValue: 'pending'
     },
-
     payoutAccountId: {
         type: DataTypes.UUID,
         allowNull: true,
@@ -30,7 +29,16 @@ module.exports = (sequelize, DataTypes) => {
             model: 'payout_accounts',
             key: 'id'
         }
+    },
+    payoutOrder: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    hasReceivedPayout: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     }
+
 
   }, {
     tableName: 'memberships',

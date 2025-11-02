@@ -1,5 +1,5 @@
 const { where } = require('sequelize');
-const { Group, Membership, User, Contribution, PayoutAccount, Cycle, payout } = require('../models');
+const { Group, Membership, User, Contribution, PayoutAccount, Cycle, Payout } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
 //  Create a new group
@@ -135,28 +135,151 @@ exports.attachPayoutToGroup = async (req, res) => {
 exports.getUserGroups = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { Op } = require('sequelize');
 
-    const groups = await Group.findAll({
-  include: [
-    {
-      model: User,
-      as: 'members',
-      attributes: ['id', 'name', 'email'], // ✅ safe fields only
-      through: { attributes: [] },
-      where: { id: userId }
-    },
-    {
-      model: User,
-      as: 'admin',
-      attributes: ['id', 'name', 'email']
+    // First, get all group IDs where user is a member
+    const userMemberships = await Membership.findAll({
+      where: { userId, status: 'active' },
+      attributes: ['groupId']
+    });
+
+    const groupIds = userMemberships.map(m => m.groupId);
+
+    if (groupIds.length === 0) {
+      return res.status(200).json({ 
+        success: true,
+        count: 0,
+        groups: [] 
+      });
     }
-  ]
-});
 
-    res.status(200).json({ groups });
+    // Then get all groups with full details
+    const groups = await Group.findAll({
+      where: { id: { [Op.in]: groupIds } },
+      include: [
+        {
+          model: User,
+          as: 'members',
+          attributes: ['id', 'name', 'email', 'profilePicture'],
+          through: { 
+            attributes: ['role', 'status', 'payoutOrder', 'hasReceivedPayout', 'createdAt'],
+            where: { status: 'active' }
+          }
+        },
+        {
+          model: User,
+          as: 'admin',
+          attributes: ['id', 'name', 'email', 'profilePicture']
+        },
+        {
+          model: Cycle,
+          as: 'cycles',
+          attributes: ['id', 'currentRound', 'totalRounds', 'status', 'activeMemberId', 'startDate', 'endDate'],
+          where: { status: 'active' },
+          required: false
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Format response
+    const formattedGroups = groups.map(group => {
+      const activeCycle = group.cycles && group.cycles.length > 0 ? group.cycles[0] : null;
+      const currentUserMembership = group.members.find(m => m.id === userId);
+      
+      return {
+        id: group.id,
+        groupName: group.groupName,
+        description: group.description,
+        contributionAmount: group.contributionAmount,
+        contributionFrequency: group.contributionFrequency,
+        payoutFrequency: group.payoutFrequency,
+        penaltyFee: group.penaltyFee,
+        totalMembers: group.totalMembers,
+        currentMembersCount: group.members.length,
+        status: group.status,
+        commissionRate: group.commissionRate,
+        inviteCode: group.inviteCode,
+        createdAt: group.createdAt,
+        updatedAt: group.updatedAt,
+        
+        // Admin info
+        admin: {
+          id: group.admin.id,
+          name: group.admin.name,
+          email: group.admin.email,
+          profilePicture: group.admin.profilePicture
+        },
+        isAdmin: group.adminId === userId,
+        
+        // Current user's role in this group
+        myRole: currentUserMembership ? currentUserMembership.Membership.role : null,
+        myPayoutOrder: currentUserMembership ? currentUserMembership.Membership.payoutOrder : null,
+        hasReceivedPayout: currentUserMembership ? currentUserMembership.Membership.hasReceivedPayout : false,
+        joinedAt: currentUserMembership ? currentUserMembership.Membership.createdAt : null,
+        
+        // All members (sorted by payout order)
+        members: group.members
+          .map(member => ({
+            id: member.id,
+            name: member.name,
+            email: member.email,
+            profilePicture: member.profilePicture,
+            role: member.Membership.role,
+            payoutOrder: member.Membership.payoutOrder,
+            hasReceivedPayout: member.Membership.hasReceivedPayout,
+            joinedAt: member.Membership.createdAt,
+            isMe: member.id === userId,
+            isCurrentRecipient: activeCycle ? member.id === activeCycle.activeMemberId : false
+          }))
+          .sort((a, b) => {
+            // Sort by payout order (nulls last), then by joined date
+            if (a.payoutOrder === null && b.payoutOrder === null) {
+              return new Date(a.joinedAt) - new Date(b.joinedAt);
+            }
+            if (a.payoutOrder === null) return 1;
+            if (b.payoutOrder === null) return -1;
+            return a.payoutOrder - b.payoutOrder;
+          }),
+        
+        // Active cycle details
+        activeCycle: activeCycle ? {
+          id: activeCycle.id,
+          currentRound: activeCycle.currentRound,
+          totalRounds: activeCycle.totalRounds,
+          status: activeCycle.status,
+          startDate: activeCycle.startDate,
+          currentRecipient: {
+            id: activeCycle.activeMemberId,
+            name: group.members.find(m => m.id === activeCycle.activeMemberId)?.name || 'Unknown',
+          },
+          progress: activeCycle.totalRounds > 0 
+            ? ((activeCycle.currentRound / activeCycle.totalRounds) * 100).toFixed(2) 
+            : 0
+        } : null,
+        
+        // Quick stats
+        stats: {
+          isComplete: group.members.length === group.totalMembers,
+          spotsRemaining: Math.max(0, group.totalMembers - group.members.length),
+          hasActiveCycle: !!activeCycle
+        }
+      };
+    });
+
+    res.status(200).json({ 
+      success: true,
+      count: formattedGroups.length,
+      data: formattedGroups 
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Get user groups error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
 
@@ -315,7 +438,7 @@ exports.getGroupSummary = async (req, res) => {
     const totalContributions = group.contributions.reduce((sum, c) => sum + c.amount, 0);
 
     const goalPerMember = group.contributionAmount || 10000;
-    const totalGoal = totalMembers * goalPerMember;
+    const totalGoal = group.totalMembers * goalPerMember;
     const progress = totalGoal > 0 ? ((totalContributions / totalGoal) * 100).toFixed(2) : 0;
 
     res.status(200).json({
@@ -336,83 +459,410 @@ exports.getGroupSummary = async (req, res) => {
 exports.startCycle = async (req, res) => {
   const { id } = req.params; 
   const userId = req.user.id;
+  
+  const t = await Group.sequelize.transaction();
 
   try {
-    const group = await Group.findByPk(id, {
-      include: [
-        {
-          association: 'members',
-          attributes: ['id', 'name', 'email'], 
-          through: {
-            attributes: [], 
-            where: { status: 'active' }, 
-          },
-        },
-      ],
-    });
+    const group = await Group.findByPk(id, { transaction: t });
 
     if (!group) {
+      await t.rollback();
       return res.status(404).json({ message: 'Group not found.' });
     }
 
     if (group.adminId !== userId) {
+      await t.rollback();
       return res.status(403).json({ message: 'Only admin can start a cycle.' });
     }
 
     const existingCycle = await Cycle.findOne({
       where: { groupId: id, status: 'active' },
+      transaction: t,
     });
 
     if (existingCycle) {
+      await t.rollback();
       return res.status(400).json({ message: 'A cycle is already active for this group.' });
     }
 
     const activeMembersCount = await Membership.count({
-      where: { groupId: id, status: 'active'}
+      where: { groupId: id, status: 'active'},
+      transaction: t,
     });
 
-    if (activeMembersCount  < group.totalMembers) {
-      console.log(activeMembersCount, group.totalMembers);
-      
-      return res.status(400).json({ message: `Only ${activeMemberCount} of ${group.totalMembers} members approved. Cannot start cycle.` });
+    if (activeMembersCount < group.totalMembers) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: `Only ${activeMembersCount} of ${group.totalMembers} members approved. Cannot start cycle.` 
+      });
     }
 
-    // Select first member as first payout recipient
-    const firstMember = group.members[0];
+    // ✅ Get members ordered by payoutOrder (or createdAt if not set)
+    const members = await Membership.findAll({
+      where: { groupId: id, status: 'active' },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email']
+      }],
+      order: [
+        ['payoutOrder', 'ASC NULLS LAST'], // Use payoutOrder if set
+        ['createdAt', 'ASC'] // Fallback to join order
+      ],
+      transaction: t
+    });
+
+    if (!members || members.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: 'No active members found in group. Cannot start cycle.' 
+      });
+    }
+
+    // ✅ If payoutOrder not set, assign it now
+    let needsOrderAssignment = members.some(m => m.payoutOrder === null);
+    if (needsOrderAssignment) {
+      for (let i = 0; i < members.length; i++) {
+        await members[i].update({ payoutOrder: i + 1 }, { transaction: t });
+      }
+    }
+
+    // First member in order gets paid first
+    const firstMember = members[0];
 
     const cycle = await Cycle.create({
       groupId: id,
       currentRound: 1,
-      activeMemberId: firstMember.id,
+      activeMemberId: firstMember.userId,
       status: 'active',
       startDate: new Date(),
-    });
+      totalRounds: group.totalMembers,
+    }, { transaction: t });
 
-    // Send notification to all group members
+    // Reset hasReceivedPayout for all members
+    await Membership.update(
+      { hasReceivedPayout: false },
+      { where: { groupId: id, status: 'active' }, transaction: t }
+    );
+
+    await group.update({ status: 'active' }, { transaction: t });
+
+    await t.commit();
+
+    // Send notifications
     const { sendMail } = require('../utils/sendgrid');
-    for (const member of group.members) {
-      await sendMail({
-        to: member.email,
-        subject: 'New Cycle Started!',
-        html: `
-          <p>Hi ${member.name},</p>
-          <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
-          <p>Please make your first contribution of <b>${group.contributionAmount}</b> as soon as possible.</p>
-        `,
-      });
+    try {
+      for (const member of members) {
+        await sendMail({
+          email: member.user.email,
+          subject: 'New Cycle Started!',
+          html: `
+            <p>Hi ${member.user.name},</p>
+            <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
+            <p>Please make your first contribution of <b>₦${group.contributionAmount.toLocaleString()}</b> as soon as possible.</p>
+            <p><strong>Your payout position:</strong> ${member.payoutOrder} of ${members.length}</p>
+            <p><strong>First recipient:</strong> ${firstMember.user.name}</p>
+          `,
+        });
+      }
+      console.log(`✅ Emails sent to ${members.length} members`);
+    } catch (emailError) {
+      console.error('Email notification error:', emailError.message);
     }
-
-    await group.update({ status: 'active' });
 
     return res.status(200).json({
       message: 'Cycle started successfully.',
-      cycle,
+      data: {
+        cycle: {
+          id: cycle.id,
+          groupId: cycle.groupId,
+          currentRound: cycle.currentRound,
+          totalRounds: cycle.totalRounds,
+          activeMemberId: cycle.activeMemberId,
+          activeMemberName: firstMember.user.name,
+          status: cycle.status,
+          startDate: cycle.startDate,
+        },
+        payoutSchedule: members.map(m => ({
+          position: m.payoutOrder,
+          name: m.user.name,
+          userId: m.userId
+        }))
+      }
     });
+
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('Start cycle error:', error);
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
+
+
+
+// Get payout order for a group
+exports.getPayoutOrder = async (req, res) => {
+  try {
+    const { id } = req.params; // groupId
+    const userId = req.user.id;
+
+    const group = await Group.findByPk(id);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found.' });
+    }
+
+    // Check if user is member or admin
+    const membership = await Membership.findOne({
+      where: { userId, groupId: id, status: 'active' }
+    });
+
+    if (!membership && group.adminId !== userId) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    // Get all active members with their payout order
+    const members = await Membership.findAll({
+      where: { groupId: id, status: 'active' },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email']
+      }],
+      order: [['payoutOrder', 'ASC'], ['createdAt', 'ASC']]
+    });
+
+    // Check if there's an active cycle
+    const cycle = await Cycle.findOne({
+      where: { groupId: id, status: 'active' }
+    });
+
+    const payoutSchedule = members.map((member, index) => ({
+      position: member.payoutOrder || index + 1,
+      userId: member.userId,
+      name: member.user.name,
+      email: member.user.email,
+      hasReceivedPayout: member.hasReceivedPayout,
+      isCurrentRecipient: cycle ? cycle.activeMemberId === member.userId : false,
+      joinedAt: member.createdAt
+    }));
+
+    return res.status(200).json({
+      message: 'Payout order retrieved successfully.',
+      data: {
+        groupId: id,
+        groupName: group.groupName,
+        totalMembers: members.length,
+        currentCycle: cycle ? {
+          id: cycle.id,
+          currentRound: cycle.currentRound,
+          activeMemberId: cycle.activeMemberId,
+          status: cycle.status
+        } : null,
+        payoutSchedule
+      }
+    });
+
+  } catch (error) {
+    console.error('Get payout order error:', error);
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+// Set/Update payout order (Admin only)
+exports.setPayoutOrder = async (req, res) => {
+  const t = await Group.sequelize.transaction();
+  
+  try {
+    const { id } = req.params; // groupId
+    const userId = req.user.id;
+    const { payoutOrder } = req.body; // Array of { userId, position }
+
+    const group = await Group.findByPk(id, { transaction: t });
+    if (!group) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Group not found.' });
+    }
+
+    // Only admin can set payout order
+    if (group.adminId !== userId) {
+      await t.rollback();
+      return res.status(403).json({ message: 'Only admin can set payout order.' });
+    }
+
+    // Check if cycle has already started
+    const activeCycle = await Cycle.findOne({
+      where: { groupId: id, status: 'active' },
+      transaction: t
+    });
+
+    if (activeCycle) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: 'Cannot change payout order after cycle has started.' 
+      });
+    }
+
+    // Validate payoutOrder array
+    if (!Array.isArray(payoutOrder)) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: 'payoutOrder must be an array of { userId, position }' 
+      });
+    }
+
+    // Get all active members
+    const members = await Membership.findAll({
+      where: { groupId: id, status: 'active' },
+      transaction: t
+    });
+
+    if (payoutOrder.length !== members.length) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: `All ${members.length} members must be included in payout order.` 
+      });
+    }
+
+    // Update payout order for each member
+    for (const order of payoutOrder) {
+      await Membership.update(
+        { payoutOrder: order.position },
+        { 
+          where: { userId: order.userId, groupId: id },
+          transaction: t 
+        }
+      );
+    }
+
+    await t.commit();
+
+    // Get updated order
+    const updatedMembers = await Membership.findAll({
+      where: { groupId: id, status: 'active' },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email']
+      }],
+      order: [['payoutOrder', 'ASC']]
+    });
+
+    return res.status(200).json({
+      message: 'Payout order updated successfully.',
+      data: updatedMembers.map(m => ({
+        userId: m.userId,
+        name: m.user.name,
+        position: m.payoutOrder
+      }))
+    });
+
+  } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('Set payout order error:', error);
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+// Randomize payout order (Admin only)
+exports.randomizePayoutOrder = async (req, res) => {
+  const t = await Group.sequelize.transaction();
+  
+  try {
+    const { id } = req.params; // groupId
+    const userId = req.user.id;
+
+    const group = await Group.findByPk(id, { transaction: t });
+    if (!group) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Group not found.' });
+    }
+
+    if (group.adminId !== userId) {
+      await t.rollback();
+      return res.status(403).json({ message: 'Only admin can randomize payout order.' });
+    }
+
+    // Check if cycle has started
+    const activeCycle = await Cycle.findOne({
+      where: { groupId: id, status: 'active' },
+      transaction: t
+    });
+
+    if (activeCycle) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: 'Cannot randomize payout order after cycle has started.' 
+      });
+    }
+
+    // Get all active members
+    const members = await Membership.findAll({
+      where: { groupId: id, status: 'active' },
+      transaction: t
+    });
+
+    // Shuffle array (Fisher-Yates algorithm)
+    const shuffled = [...members].sort(() => Math.random() - 0.5);
+
+    // Update with random order
+    for (let i = 0; i < shuffled.length; i++) {
+      await Membership.update(
+        { payoutOrder: i + 1 },
+        { 
+          where: { id: shuffled[i].id },
+          transaction: t 
+        }
+      );
+    }
+
+    await t.commit();
+
+    // Get updated order
+    const updatedMembers = await Membership.findAll({
+      where: { groupId: id, status: 'active' },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email']
+      }],
+      order: [['payoutOrder', 'ASC']]
+    });
+
+    return res.status(200).json({
+      message: 'Payout order randomized successfully.',
+      data: updatedMembers.map(m => ({
+        userId: m.userId,
+        name: m.user.name,
+        position: m.payoutOrder
+      }))
+    });
+
+  } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('Randomize payout order error:', error);
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+
 
 // member to make a contribution
 exports.makeContribution = async (req, res) => {
@@ -508,35 +958,37 @@ exports.makeContribution = async (req, res) => {
 
 // handle payout and cycle rotation
 exports.handlePayoutAndRotate = async (cycleId, groupId) => {
- const cycle = await cycle.findByPk(cycleId, { include: [{association: 'group'}]});
-
- const group = await group.findByPk(groupId);
+  const { sendMail } = require('../utils/sendgrid');
+  
+  const cycle = await Cycle.findByPk(cycleId, { include: [{association: 'group'}]});
+  const group = await Group.findByPk(groupId);
 
   if (!cycle || !group) {
     throw new Error('Cycle or Group not found for payout rotation.');
   }
 
-  // Calculate total amount contributed
-  const contributions = await Contribution.findAll({ where: { cycleId} });
+  const contributions = await Contribution.findAll({ where: { cycleId } });
   const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
   
-  // Deduct commission fee (which is  2%)  abi ?
   const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
   const finalAmount = totalAmount - commissionFee;
 
-  // Pay current member 
-  await payout.create({
+  // Create payout record
+  await Payout.create({
     userId: cycle.activeMemberId,
     groupId: group.id,
     cycleId: cycle.id,
-    amount: `initial payout: ${totalAmount}, commission: ${commissionFee}, total payout: ${finalAmount}`,
+    amount: totalAmount.toFixed(2),
+    commissionFee: commissionFee.toFixed(2),
     penaltyFee: 0,
     status: 'completed',
     payoutDate: new Date(),
   });
 
-  // Move to next member
-  const members = await Membership.findAll({ where: { groupId: group.id, status: 'active' }, include: [{model: User, as: 'User'}],
+  // Get members
+  const members = await Membership.findAll({ 
+    where: { groupId: group.id, status: 'active' }, 
+    include: [{model: User, as: 'user'}],
     order: [['createdAt', 'ASC']]
   });
 
@@ -544,49 +996,56 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
   const nextMember = members[currentIndex + 1];
 
   if (nextMember) {
-    // Rotate to next member , if there is one
+    // Move to next round
     await cycle.update({
       currentRound: cycle.currentRound + 1,
       activeMemberId: nextMember.userId,
     });
 
-    // Clear contributions for next round
-    await Contribution.destroy({ where: { cycleId: cycle.id } });
+    // Don't delete contributions - keep history
+    // await Contribution.destroy({ where: { cycleId: cycle.id } });
     
-     for (const member of members) {
-      await sendMail({
-        to: member.user.email,
-        subject: `Round ${cycle.currentRound} Started`,
-        html: `
-          <p>Hi ${member.user.name},</p>
-          <p>Round ${cycle.currentRound} has started.</p>
-          <p>Next recipient: <b>${nextMember.user.name}</b></p>
-          <p>Please contribute <b>${group.contributionAmount}</b>.</p>
-        `
-      });
+    // Send round completion emails
+    try {
+      for (const member of members) {
+        await sendMail({
+          email: member.user.email,  // ✅ Fixed here too
+          subject: `Round ${cycle.currentRound} Started`,
+          html: `
+            <p>Hi ${member.user.name},</p>
+            <p>Round ${cycle.currentRound} of ${members.length} has started.</p>
+            <p>Next recipient: <b>${nextMember.user.name}</b></p>
+            <p>Please contribute <b>₦${group.contributionAmount.toLocaleString()}</b>.</p>
+          `
+        });
+      }
+    } catch (emailError) {
+      console.error('Round notification email error:', emailError.message);
     }
 
   } else {
-    //  if No next member then we can share the grace and end cycle
-    // await endCycle(cycle.id);
+    // Cycle complete
     await cycle.update({ 
       status: 'completed',
       endDate: new Date()
     });
-    await group.update({ status: 'completed'});
-    const { sendMail } = require('../utils/sendgrid');
-    for (const member of members) {
-      await sendMail({
-        to: member.user.email,
-        subject: 'Cycle Completed!',
-        html: `
-          <p>Hi ${member.user.name},</p>
-          <p>The cycle for <b>${group.groupName}</b> has completed!</p>
-          <p>All members have received their payout.</p>
-        `
-      });
+    await group.update({ status: 'completed' });
+    
+    try {
+      for (const member of members) {
+        await sendMail({
+          email: member.user.email,  // ✅ Fixed here too
+          subject: 'Cycle Completed!',
+          html: `
+            <p>Hi ${member.user.name},</p>
+            <p>The cycle for <b>${group.groupName}</b> has completed!</p>
+            <p>All members have received their payout.</p>
+          `
+        });
+      }
+    } catch (emailError) {
+      console.error('Completion email error:', emailError.message);
     }
-
   }
 };
 
@@ -594,23 +1053,162 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
 exports.endCycle = async (req, res) => {
   const { id } = req.params; // groupId
   const userId = req.user.id;
+  const { forceEnd } = req.body; // Optional flag to force end
+  
+  const t = await Group.sequelize.transaction();
 
   try {
-    const group = await Group.findByPk(id);
-    if (!group) return res.status(404).json({ message: 'Group not found.' });
-    if (group.adminId !== userId)
+    const group = await Group.findByPk(id, { transaction: t });
+    
+    if (!group) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Group not found.' });
+    }
+
+    if (group.adminId !== userId) {
+      await t.rollback();
       return res.status(403).json({ message: 'Only admin can end cycle.' });
+    }
 
-    const cycle = await Cycle.findOne({ where: { groupId: id, status: 'active' } });
-    if (!cycle) return res.status(400).json({ message: 'No active cycle found.' });
+    const cycle = await Cycle.findOne({ 
+      where: { groupId: id, status: 'active' },
+      transaction: t 
+    });
 
-    await cycle.update({ status: 'completed', endDate: new Date() });
-    await group.update({ status: 'completed' });
+    if (!cycle) {
+      await t.rollback();
+      return res.status(400).json({ message: 'No active cycle found.' });
+    }
 
-    res.status(200).json({ message: 'Cycle ended successfully.' });
+    // Get statistics
+    const totalContributions = await Contribution.count({
+      where: { cycleId: cycle.id },
+      transaction: t
+    });
+
+    const totalPayouts = await Payout.count({
+      where: { cycleId: cycle.id },
+      transaction: t
+    });
+
+    const activeMembersCount = await Membership.count({
+      where: { groupId: id, status: 'active' },
+      transaction: t
+    });
+
+    //  Check if cycle is complete before ending
+    if (!forceEnd && cycle.currentRound < activeMembersCount) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: 'Cycle is not yet complete. Not all members have received payouts.',
+        warning: {
+          currentRound: cycle.currentRound,
+          totalMembers: activeMembersCount,
+          remainingRounds: activeMembersCount - cycle.currentRound,
+          suggestion: 'Set forceEnd: true in request body to end cycle anyway.'
+        }
+      });
+    }
+
+    // Check for pending contributions
+    const pendingContributions = await Contribution.count({
+      where: { 
+        cycleId: cycle.id, 
+        status: 'pending' 
+      },
+      transaction: t
+    });
+
+    if (!forceEnd && pendingContributions > 0) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: `There are ${pendingContributions} pending contributions.`,
+        warning: {
+          pendingContributions,
+          suggestion: 'you can set {forceEnd: true} in request body to end cycle anyway.'
+        }
+      });
+    }
+
+    // Update cycle and group status
+    await cycle.update({ 
+      status: 'completed', 
+      endDate: new Date() 
+    }, { transaction: t });
+
+    await group.update({ 
+      status: 'completed' 
+    }, { transaction: t });
+
+    // Commit transaction
+    await t.commit();
+
+    // Send notifications
+    const { sendMail } = require('../utils/sendgrid');
+    try {
+      const members = await Membership.findAll({
+        where: { groupId: id, status: 'active' },
+        include: [{ model: User, as: 'user' }]
+      });
+
+      for (const member of members) {
+        await sendMail({
+          email: member.user.email,
+          subject: 'Cycle Ended - ' + group.groupName,
+          html: `
+            <p>Hi ${member.user.name},</p>
+            <p>The cycle for <b>${group.groupName}</b> has been ended by the admin.</p>
+            <p><strong>Cycle Summary:</strong></p>
+            <ul>
+              <li>Rounds Completed: <b>${cycle.currentRound} of ${activeMembersCount}</b></li>
+              <li>Total Contributions: <b>${totalContributions}</b></li>
+              <li>Total Payouts: <b>${totalPayouts}</b></li>
+              <li>Duration: ${Math.ceil((new Date(cycle.endDate) - new Date(cycle.startDate)) / (1000 * 60 * 60 * 24))} days</li>
+            </ul>
+            <p>Started: <b>${new Date(cycle.startDate).toLocaleDateString()}</b></p>
+            <p>Ended: <b>${new Date(cycle.endDate).toLocaleDateString()}</b></p>
+            <p>Thank you for participating in this cycle!</p>
+          `,
+        });
+      }
+      console.log(`Cycle end notifications sent to ${members.length} members`);
+    } catch (emailError) {
+      console.error('Email notification error:', emailError.message);
+    }
+
+    return res.status(200).json({ 
+      message: 'Cycle ended successfully.',
+      data: {
+        cycle: {
+          id: cycle.id,
+          groupId: cycle.groupId,
+          status: cycle.status,
+          currentRound: cycle.currentRound,
+          totalRounds: activeMembersCount,
+          startDate: cycle.startDate,
+          endDate: cycle.endDate,
+          duration: Math.ceil((new Date(cycle.endDate) - new Date(cycle.startDate)) / (1000 * 60 * 60 * 24)) + ' days'
+        },
+        statistics: {
+          totalContributions,
+          totalPayouts,
+          activeMembersCount,
+          pendingContributions,
+          completionRate: ((cycle.currentRound / activeMembersCount) * 100).toFixed(2) + '%'
+        },
+        emailsSent: true
+      }
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('End cycle error:', error);
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
 
