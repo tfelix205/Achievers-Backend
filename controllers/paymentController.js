@@ -23,7 +23,7 @@ exports.initializeContribution = async (req, res) => {
     }
 
     //  Generate unique reference
-    const reference = `CONT-${uuidv4()}`;
+    const reference = `Splita-${uuidv4()}`;
     const amount = parseFloat(group.contributionAmount);
 
     const paymentData = {
