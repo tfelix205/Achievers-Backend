@@ -735,4 +735,3 @@ module.exports = router;
  *                   type: string
  *                   example: Database connection failed
  */
-

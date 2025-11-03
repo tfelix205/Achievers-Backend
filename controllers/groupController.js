@@ -1,5 +1,12 @@
 const { Group, Membership, User, Contribution, PayoutAccount, Cycle, Payout, sequelize } = require('../models');
 const { v4: uuidv4 } = require('uuid');
+const {nameToTitleCase} = require('../helper/nameConverter');
+const { sendMail } = require('../utils/sendgrid');
+const { groupCreatedMail } = require('../utils/groupCreatedMail');
+const { joinRequestMail } = require('../utils/joinRequestMail');
+const { cycleStartedMail } = require('../utils/cycleStartedMail');
+const { contributionReceivedMail } = require('../utils/contributionReceivedMail');
+const { cycleCompletedMail } = require('../utils/cycleCompletedMail');
 
 //  Create a new group
 exports.createGroup = async (req, res) => {
@@ -23,12 +30,12 @@ exports.createGroup = async (req, res) => {
 
     // Create group
     const group = await Group.create({
-      groupName: groupName.trim().toLowerCase(),
+      groupName: nameToTitleCase(groupName.trim()),
       contributionAmount,
       contributionFrequency: contributionFrequency.trim().toLowerCase(),
       payoutFrequency: payoutFrequency.trim().toLowerCase(),
       penaltyFee: newPenaltyFee,
-      description: description.trim(),
+      description: nameToTitleCase(description.trim()),
       totalMembers,
       adminId: userId
     }, { transaction: t });
@@ -42,6 +49,24 @@ exports.createGroup = async (req, res) => {
     }, { transaction: t });
 
     await t.commit();
+
+        // Send an email to the admin that the group has been created
+ const user = await User.findByPk(userId);
+ const dateString = new Date().toISOString().split('T')[0];
+
+ if (user && user.email) {
+ await sendMail({
+ email: user.email,
+subject: 'Group Created Successfully',
+html: groupCreatedMail(
+user.name,
+group.groupName,
+ group.contributionAmount,
+ group.totalMembers,
+ dateString
+ ),
+});
+}
 
     // Check payout account
     const payoutAccount = await PayoutAccount.findOne({ where: { userId } });
@@ -351,6 +376,24 @@ exports.joinGroup = async (req, res) => {
       payoutAccountId: payout.id 
     });
 
+    // Send an email to the group admin to notify them of the join request
+ const admin = await User.findByPk(group.adminId);
+const user = await User.findByPk(userId);
+   const dateString = new Date().toISOString().split('T')[0];
+
+   if (admin && admin.email && user) {
+     await sendMail({
+       email: admin.email,
+       subject: 'Request to Join Your Group',
+       html: joinRequestMail(
+         admin.name,
+         user.name,
+         group.groupName,
+         dateString
+       ),
+     });
+   }
+
     res.status(200).json({
       message: 'Join request sent successfully. Waiting for admin approval.'
     });
@@ -554,14 +597,8 @@ exports.startCycle = async (req, res) => {
       for (const member of members) {
         await sendMail({
           email: member.user.email,
-          subject: 'New Cycle Started!',
-          html: `
-            <p>Hi ${member.user.name},</p>
-            <p>The Ajo cycle for <b>${group.groupName}</b> has started.</p>
-            <p>Please make your first contribution of <b>₦${group.contributionAmount.toLocaleString()}</b> as soon as possible.</p>
-            <p><strong>Your payout position:</strong> ${member.payoutOrder} of ${members.length}</p>
-            <p><strong>First recipient:</strong> ${firstMember.user.name}</p>
-          `,
+          subject: 'New Ajo Cycle Started!',
+          html: cycleStartedMail(member.name, group.groupName, group.contributionAmount),
         });
       }
       console.log(`Emails sent to ${members.length} members`);
@@ -927,6 +964,18 @@ exports.makeContribution = async (req, res) => {
       { transaction: t }
     );
 
+     // Send an email to the user when contribution is received
+    const user = await User.findByPk(userId);
+    const dateString = new Date().toISOString().split('T')[0];
+
+    if (user && user.email) {
+      await sendMail({
+        email: user.email,
+        subject: 'Contribution Received',
+        html: contributionReceivedMail(user.name, group.groupName, amount, dateString),
+      });
+    }
+
     // Check if all members have contributed
     const allContributions = await Contribution.count({ where: { cycleId: cycle.id } });
     const activeMembers = await Membership.count({ where: { groupId: id, status: 'active' } });
@@ -1032,13 +1081,12 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
           await sendMail({
             email: member.user.email,
             subject: `Round ${cycle.currentRound} Started - ${group.groupName}`,
-            html: `
-              <p>Hi ${member.user.name},</p>
-              <p>Round ${cycle.currentRound} of ${members.length} has started!</p>
-              <p><strong>Next recipient:</strong> ${nextMember.user.name}</p>
-              <p><strong>Payout amount:</strong> ₦${finalAmount.toLocaleString()}</p>
-              <p>Please contribute <b>₦${group.contributionAmount.toLocaleString()}</b> for this round.</p>
-            `
+            html: cycleCompletedMail(
+           member.User.name,
+           group.groupName,
+           group.contributionAmount,
+           dateString
+         )
           });
         }
       } catch (emailError) {

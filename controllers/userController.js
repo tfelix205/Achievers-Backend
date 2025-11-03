@@ -37,9 +37,9 @@ exports.register = async (req, res) => {
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     const newUser = await User.create({
-      name: nameToTitleCase(name),
-      email,
-      phone,
+      name: nameToTitleCase(name).trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
       password: hash,
       otp,
       otpExpiry,
@@ -67,9 +67,6 @@ exports.register = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-
-
-
 
 exports.verifyEmail = async (req, res) => {
     try {
