@@ -18,7 +18,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false 
     },
     status: { 
-      type: DataTypes.ENUM('pending', 'completed'), 
+      type: DataTypes.ENUM('pending', 'paid','completed', 'overdue', 'failed'), 
       defaultValue: 'pending' 
     },
     contributionDate: { 
@@ -32,6 +32,28 @@ module.exports = (sequelize, DataTypes) => {
     penaltyFee: {
         type: DataTypes.FLOAT,
         defaultValue: 0
+    },
+    paymentMethod: {
+        type: DataTypes.ENUM('bank_transfer', 'manual', 'Korapay'),
+        defaultValue: 'manual',
+        allowNull: false
+    },
+    paymentReference: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true
+    },
+    paymentMetadata: {
+        type: DataTypes.JSON,
+        allowNull: true
+    },
+    dueDate: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    isLate: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     }
   }, {
     tableName: 'contributions',

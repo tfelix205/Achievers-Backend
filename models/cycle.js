@@ -41,7 +41,15 @@ module.exports = (sequelize, DataTypes) => {
             endDate: {
                 type: DataTypes.DATE,
                 allowNull: true
-            }
+            },
+            currentRoundStartDate: {
+                type: DataTypes.DATE,
+                allowNull: true 
+        },
+            currentRoundEndDate: {
+                type: DataTypes.DATE,
+                allowNull: true 
+        },
         },
         {
             tableName: 'cycles',

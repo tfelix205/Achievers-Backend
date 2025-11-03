@@ -1,5 +1,4 @@
-const { where } = require('sequelize');
-const { Group, Membership, User, Contribution, PayoutAccount, Cycle, Payout } = require('../models');
+const { Group, Membership, User, Contribution, PayoutAccount, Cycle, Payout, sequelize } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
 //  Create a new group
@@ -299,13 +298,13 @@ exports.generateInviteLink = async (req, res) => {
       return res.status(403).json({ message: 'Only the admin can generate invite links.' });
     }
 
-    const inviteCode = uuidv4();
+    const inviteCode = uuidv4().split('-')[0].toUpperCase();
     const inviteLink = `${process.env.FRONTEND_URL}/join-group/${id}?invite=${inviteCode}`;
 
     
     await group.update({ inviteCode });
 
-    res.status(200).json({ inviteLink });
+    res.status(200).json({ inviteCode });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -320,7 +319,7 @@ exports.joinGroup = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { invite } = req.query;
+    const { invite } = req.body;
 
     const group = await Group.findByPk(id);
     if (!group) return res.status(404).json({ message: 'Group not found.' });
@@ -497,7 +496,7 @@ exports.startCycle = async (req, res) => {
       });
     }
 
-    // ✅ Get members ordered by payoutOrder (or createdAt if not set)
+    // Get members ordered by payoutOrder (or createdAt if not set)
     const members = await Membership.findAll({
       where: { groupId: id, status: 'active' },
       include: [{
@@ -506,8 +505,8 @@ exports.startCycle = async (req, res) => {
         attributes: ['id', 'name', 'email']
       }],
       order: [
-        ['payoutOrder', 'ASC NULLS LAST'], // Use payoutOrder if set
-        ['createdAt', 'ASC'] // Fallback to join order
+        ['payoutOrder', 'ASC NULLS LAST'], 
+        ['createdAt', 'ASC'] 
       ],
       transaction: t
     });
@@ -519,7 +518,7 @@ exports.startCycle = async (req, res) => {
       });
     }
 
-    // ✅ If payoutOrder not set, assign it now
+    // If payoutOrder not set, assign it now
     let needsOrderAssignment = members.some(m => m.payoutOrder === null);
     if (needsOrderAssignment) {
       for (let i = 0; i < members.length; i++) {
@@ -565,7 +564,7 @@ exports.startCycle = async (req, res) => {
           `,
         });
       }
-      console.log(`✅ Emails sent to ${members.length} members`);
+      console.log(`Emails sent to ${members.length} members`);
     } catch (emailError) {
       console.error('Email notification error:', emailError.message);
     }
@@ -960,92 +959,120 @@ exports.makeContribution = async (req, res) => {
 exports.handlePayoutAndRotate = async (cycleId, groupId) => {
   const { sendMail } = require('../utils/sendgrid');
   
-  const cycle = await Cycle.findByPk(cycleId, { include: [{association: 'group'}]});
-  const group = await Group.findByPk(groupId);
-
-  if (!cycle || !group) {
-    throw new Error('Cycle or Group not found for payout rotation.');
-  }
-
-  const contributions = await Contribution.findAll({ where: { cycleId } });
-  const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
-  
-  const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
-  const finalAmount = totalAmount - commissionFee;
-
-  // Create payout record
-  await Payout.create({
-    userId: cycle.activeMemberId,
-    groupId: group.id,
-    cycleId: cycle.id,
-    amount: totalAmount.toFixed(2),
-    commissionFee: commissionFee.toFixed(2),
-    penaltyFee: 0,
-    status: 'completed',
-    payoutDate: new Date(),
-  });
-
-  // Get members
-  const members = await Membership.findAll({ 
-    where: { groupId: group.id, status: 'active' }, 
-    include: [{model: User, as: 'user'}],
-    order: [['createdAt', 'ASC']]
-  });
-
-  const currentIndex = members.findIndex(m => m.userId === cycle.activeMemberId);
-  const nextMember = members[currentIndex + 1];
-
-  if (nextMember) {
-    // Move to next round
-    await cycle.update({
-      currentRound: cycle.currentRound + 1,
-      activeMemberId: nextMember.userId,
+  try {
+    const cycle = await Cycle.findByPk(cycleId, { 
+      include: [{ association: 'group' }] 
     });
-
-    // Don't delete contributions - keep history
-    // await Contribution.destroy({ where: { cycleId: cycle.id } });
     
-    // Send round completion emails
-    try {
-      for (const member of members) {
-        await sendMail({
-          email: member.user.email,  // ✅ Fixed here too
-          subject: `Round ${cycle.currentRound} Started`,
-          html: `
-            <p>Hi ${member.user.name},</p>
-            <p>Round ${cycle.currentRound} of ${members.length} has started.</p>
-            <p>Next recipient: <b>${nextMember.user.name}</b></p>
-            <p>Please contribute <b>₦${group.contributionAmount.toLocaleString()}</b>.</p>
-          `
-        });
-      }
-    } catch (emailError) {
-      console.error('Round notification email error:', emailError.message);
+    const group = await Group.findByPk(groupId);
+
+    if (!cycle || !group) {
+      throw new Error('Cycle or Group not found for payout rotation.');
     }
 
-  } else {
-    // Cycle complete
-    await cycle.update({ 
+    // Get contributions for this round only (last 24 hours)
+    const contributions = await Contribution.findAll({ 
+      where: { 
+        cycleId,
+        createdAt: {
+          [require('sequelize').Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000)
+        }
+      } 
+    });
+    
+    const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+    const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
+    const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
+    const finalAmount = totalAmount - commissionFee;
+
+    // Create payout record
+    await Payout.create({
+      userId: cycle.activeMemberId,
+      groupId: group.id,
+      cycleId: cycle.id,
+      amount: totalAmount.toFixed(2),
+      commissionFee: commissionFee.toFixed(2),
+      penaltyFee: totalPenalties.toFixed(2),
       status: 'completed',
-      endDate: new Date()
+      payoutDate: new Date(),
     });
-    await group.update({ status: 'completed' });
-    
-    try {
-      for (const member of members) {
-        await sendMail({
-          email: member.user.email,  // ✅ Fixed here too
-          subject: 'Cycle Completed!',
-          html: `
-            <p>Hi ${member.user.name},</p>
-            <p>The cycle for <b>${group.groupName}</b> has completed!</p>
-            <p>All members have received their payout.</p>
-          `
-        });
+
+    // Mark current member as received
+    await Membership.update(
+      { hasReceivedPayout: true },
+      { where: { userId: cycle.activeMemberId, groupId: group.id } }
+    );
+
+    // Get members ordered by payoutOrder
+    const members = await Membership.findAll({ 
+      where: { groupId: group.id, status: 'active' }, 
+      include: [{ model: User, as: 'user' }],
+      order: [['payoutOrder', 'ASC']]
+    });
+
+    const currentIndex = members.findIndex(m => m.userId === cycle.activeMemberId);
+    const nextMember = members[currentIndex + 1];
+
+    if (nextMember) {
+      // Move to next round
+      await cycle.update({
+        currentRound: cycle.currentRound + 1,
+        activeMemberId: nextMember.userId,
+      });
+
+      //  Mark contributions as completed (don't delete for history)
+      await Contribution.update(
+        { status: 'completed' },
+        { where: { cycleId: cycle.id, status: 'paid' } }
+      );
+      
+      // Send round completion emails
+      try {
+        for (const member of members) {
+          await sendMail({
+            email: member.user.email,
+            subject: `Round ${cycle.currentRound} Started - ${group.groupName}`,
+            html: `
+              <p>Hi ${member.user.name},</p>
+              <p>Round ${cycle.currentRound} of ${members.length} has started!</p>
+              <p><strong>Next recipient:</strong> ${nextMember.user.name}</p>
+              <p><strong>Payout amount:</strong> ₦${finalAmount.toLocaleString()}</p>
+              <p>Please contribute <b>₦${group.contributionAmount.toLocaleString()}</b> for this round.</p>
+            `
+          });
+        }
+      } catch (emailError) {
+        console.error('Round notification email error:', emailError.message);
       }
-    } catch (emailError) {
-      console.error('Completion email error:', emailError.message);
+
+    } else {
+      // Cycle complete
+      await cycle.update({ 
+        status: 'completed',
+        endDate: new Date()
+      });
+      await group.update({ status: 'completed' });
+      
+      try {
+        for (const member of members) {
+          await sendMail({
+            email: member.user.email,
+            subject: `Cycle Completed! - ${group.groupName}`,
+            html: `
+              <p>Hi ${member.user.name},</p>
+              <p> Congratulations! The cycle for <b>${group.groupName}</b> has completed successfully!</p>
+              <p>All ${members.length} members have received their payouts.</p>
+              <p>Thank you for participating!</p>
+            `
+          });
+        }
+      } catch (emailError) {
+        console.error('Completion email error:', emailError.message);
+      }
     }
+  } catch (error) {
+    console.error('Payout and rotate error:', error);
+    throw error;
   }
 };
 

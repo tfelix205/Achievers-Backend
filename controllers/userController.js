@@ -6,6 +6,8 @@ const { signupMail } = require('../utils/signup_mail');
 const { sendMail } = require('../utils/sendgrid');
 const { passwordResetMail } = require('../utils/resetPasswordMail')
 const nameToTitleCase = require('../helper/nameConverter');
+const cloudinary = require('../config/cloudinary');
+const fs = require('fs');
 
 
 
@@ -245,6 +247,67 @@ exports.getProfile = async (req, res) => {
       });
     }
   },
+
+
+
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, phone } = req.body;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updateData = {};
+    if (name) updateData.name = nameToTitleCase(name);
+    if (phone) updateData.phone = phone;
+
+    // Handle profile picture upload
+    if (req.file) {
+      try {
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: 'splita/profiles',
+          public_id: `user_${userId}`,
+          overwrite: true,
+          transformation: [
+            { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+            { quality: 'auto' }
+          ]
+        });
+
+        updateData.profilePicture = result.secure_url;
+
+        // Delete local file
+        fs.unlinkSync(req.file.path);
+      } catch (uploadError) {
+        console.error('Cloudinary upload error:', uploadError);
+        return res.status(500).json({ message: 'Failed to upload image' });
+      }
+    }
+
+    await user.update(updateData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        profilePicture: user.profilePicture
+      }
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
 
 
 exports.getAllUsers = async (req, res) => {

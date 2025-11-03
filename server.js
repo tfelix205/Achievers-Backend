@@ -5,6 +5,7 @@ const cron = require('node-cron');
 const { sequelize } = require('./models');
 const setupSwagger = require('./swagger/swagger')
 const PORT = process.env.PORT || 6789;
+const { v4: uuidv4 } = require('uuid');
 
 //init
 const app = express();
@@ -18,6 +19,7 @@ const userRoutes = require('./routes/userRoute');
 const groupRoutes = require('./routes/groupRoutes');
 const contributionRoutes = require('./routes/contributionRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 
 //access routes
@@ -26,7 +28,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/contributions', contributionRoutes);
 app.use('/api/payouts', payoutRoutes);
-
+app.use('/api/payments', paymentRoutes);
 
 
 sequelize.sync().then(() => {

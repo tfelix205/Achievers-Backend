@@ -3,6 +3,7 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const auth = require('../middleware/auth');
 const { registerValidator, loginValidator, resetPasswordValidator } = require('../middleware/validator');
+const upload = require('../middleware/multer');
 
 // Public routes
 router.post('/register', registerValidator, userController.register);
@@ -13,6 +14,8 @@ router.get('/all-users', userController.getAllUsers);
 router.post('/forgot-password', userController.forgotPassword);
 router.post('/reset-password', resetPasswordValidator, userController.resetPassword);
 router.get('/getuser/:id', userController.getOneUser);
+router.put('/profile', auth, upload.single('profilePicture'), userController.updateProfile);
+
 
 
 // Protected routes
@@ -268,6 +271,90 @@ module.exports = router;
  *       500:
  *         description: Server error
  */
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   put:
+ *     summary: Update user profile
+ *     description: >
+ *       Updates the authenticated user's profile information, including name, phone, and optionally a profile picture.  
+ *       If a new image file is uploaded, it will be stored in Cloudinary and replace the existing profile picture.
+ *     tags: [User]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: User's full name
+ *                 example: Jimoh Chidera
+ *               phone:
+ *                 type: string
+ *                 description: User's phone number
+ *                 example: "+2348034567890"
+ *               profilePicture:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile picture file (optional)
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Profile updated successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     name:
+ *                       type: string
+ *                       example: Jimoh Chidera
+ *                     email:
+ *                       type: string
+ *                       example: jimoh@example.com
+ *                     phone:
+ *                       type: string
+ *                       example: "+2348034567890"
+ *                     profilePicture:
+ *                       type: string
+ *                       example: https://res.cloudinary.com/demo/image/upload/v123456789/user_1.jpg
+ *       400:
+ *         description: Invalid input data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Invalid request data
+ *       401:
+ *         description: Unauthorized — missing or invalid token
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+
+
+
+
 
 
 /**
