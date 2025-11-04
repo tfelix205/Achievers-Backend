@@ -124,6 +124,10 @@ Payout.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 Payout.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
 Payout.belongsTo(Cycle, { foreignKey: 'cycleId', as: 'cycle' });
 
+//membership
+User.hasMany(Membership, { foreignKey: 'userId', as: 'memberships' });
+Membership.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 // Exporting  all models so they can be accessed in controllers and jobs
 module.exports = {
   sequelize,
