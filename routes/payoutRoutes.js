@@ -39,7 +39,7 @@ module.exports = router;
  *             properties:
  *               groupId:
  *                 type: string
- *                 example: "1"
+ *                 example: "123e4567-e89b-12d3-a456-426614163890"
  *                 description: ID of the group
  *               cycleId:
  *                 type: string
@@ -47,7 +47,7 @@ module.exports = router;
  *                 description: ID of the cycle
  *               userId:
  *                 type: string
- *                 example: "2"
+ *                 example: "123e4567-e89b-12d3-a456-426614175643"
  *                 description: ID of the member to receive the payout
  *     responses:
  *       201:
@@ -68,10 +68,10 @@ module.exports = router;
  *                       example: "123e4567-e89b-12d3-a456-426614174000"
  *                     groupId:
  *                       type: string
- *                       example: "1"
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
  *                     userId:
  *                       type: string
- *                       example: "2"
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
  *                     cycleId:
  *                       type: string
  *                       example: "123e4567-e89b-12d3-a456-426614174000"

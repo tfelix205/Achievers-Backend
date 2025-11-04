@@ -24,7 +24,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /payment/initialize-contribution:
+ * /api/payments/initialize-contribution:
  *   post:
  *     summary: Initialize a contribution payment
  *     description: Generates a unique payment reference and returns a Korapay authorization URL for the user to complete payment.
@@ -41,7 +41,7 @@ module.exports = router;
  *               - groupId
  *             properties:
  *               groupId:
- *                 type: integer
+ *                 type: string
  *                 description: ID of the group the user wants to contribute to
  *     responses:
  *       200:
@@ -77,7 +77,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /payment/verify-contribution:
+ * /api/payments/verify-contribution:
  *   get:
  *     summary: Verify a contribution payment
  *     description: Verifies the status of a Korapay payment reference and records the contribution if successful.

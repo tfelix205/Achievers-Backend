@@ -34,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0
     },
     paymentMethod: {
-        type: DataTypes.ENUM('bank_transfer', 'manual', 'Korapay'),
+        type: DataTypes.ENUM('bank_transfer', 'manual', 'korapay'),
         defaultValue: 'manual',
         allowNull: false
     },

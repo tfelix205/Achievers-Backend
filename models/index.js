@@ -76,7 +76,7 @@ const sequelize = isProduction
 
 // Models
 
-User = require('./user')(sequelize, Sequelize.DataTypes);
+const User = require('./user')(sequelize, Sequelize.DataTypes);
 const Group = require('./group')(sequelize, Sequelize.DataTypes);
 const Membership = require('./groupMembers')(sequelize, Sequelize.DataTypes);
 const PayoutAccount = require('./payoutAccount')(sequelize, Sequelize.DataTypes);
@@ -105,6 +105,8 @@ Contribution.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 Group.hasMany(Contribution, { foreignKey: 'groupId', as: 'contributions' });
 Contribution.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+
+Contribution.belongsTo(Cycle, { foreignKey: 'cycleId', as: 'cycle' });
 
 // Cycle
 Group.hasMany(Cycle, { foreignKey: 'groupId', as: 'cycles' });
