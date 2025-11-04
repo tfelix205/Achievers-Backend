@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const cron = require('node-cron');
-const {sequelize} = require('./models');
+const { sequelize } = require('./models');
 const setupSwagger = require('./swagger/swagger')
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 6789;
+const { v4: uuidv4 } = require('uuid');
 
 //init
 const app = express();
@@ -16,18 +17,23 @@ setupSwagger(app)
 // Import routes
 const userRoutes = require('./routes/userRoute');
 const groupRoutes = require('./routes/groupRoutes');
+const contributionRoutes = require('./routes/contributionRoutes');
+const payoutRoutes = require('./routes/payoutRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 
 //access routes
 app.get('/', (req, res) => res.send('Welcome to the Ajo API'));
 app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
-
+app.use('/api/contributions', contributionRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/payments', paymentRoutes);
 
 
 sequelize.sync().then(() => {
   console.log('Models synced successfully.');
   app.listen(PORT, () =>
-    console.log(`Server running on http://localhost:${PORT} `,`and https://splita.onrender.com` )
+    console.log(`Server running on http://localhost:${PORT} `, `and https://splita.onrender.com`)
   );
 });

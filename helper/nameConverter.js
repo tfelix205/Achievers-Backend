@@ -1,4 +1,4 @@
-const nameToTitleCase = (string) => {
+exports.nameToTitleCase = (string) => {
     if (!string) return '';
     return string
         .toLowerCase()
@@ -7,4 +7,3 @@ const nameToTitleCase = (string) => {
         .join(' ');
 };
 
-module.exports = nameToTitleCase;

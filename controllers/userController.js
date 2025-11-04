@@ -1,11 +1,13 @@
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken');
-const {User} = require('../models');
+const {User, Group} = require('../models');
 const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
-const {sendMail} = require('../utils/sendgrid');
+const { sendMail } = require('../utils/sendgrid');
 const { passwordResetMail } = require('../utils/resetPasswordMail')
 const nameToTitleCase = require('../helper/nameConverter');
+const cloudinary = require('../config/cloudinary');
+const fs = require('fs');
 
 
 
@@ -35,14 +37,22 @@ exports.register = async (req, res) => {
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     const newUser = await User.create({
-      name: nameToTitleCase(name),
-      email,
-      phone,
+      name: nameToTitleCase(name).trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
       password: hash,
       otp,
       otpExpiry,
       isVerified: false
     });
+
+    const  response = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      
+      
+    };
 
    
     await sendMail({
@@ -51,15 +61,12 @@ exports.register = async (req, res) => {
       html:signupMail(otp, newUser.name)
     });
 
-    res.status(201).json({ message: 'User registered successfully', data: newUser });
+    res.status(201).json({ message: 'User registered successfully', data: response });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-
-
-
 
 exports.verifyEmail = async (req, res) => {
     try {
@@ -164,7 +171,7 @@ exports.resendOtp = async (req, res) => {
             email: user.email
         });
 
-    } catch {
+    } catch (error) {
         res.status(500).json({
             message: 'Internal server error',
             error: error.message
@@ -177,10 +184,10 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ message: 'Invalid email or password' });
+    if (!user) return res.status(404).json({ message: 'Invalid credentials' });
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ message: 'Invalid email or password' });
+    if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
 
     if (!user.isVerified) {
       return res.status(403).json({ message: 'Email not verified. Please verify your email before logging in.' });
@@ -192,22 +199,110 @@ exports.login = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.json({ message: 'Login successful', token });
+    res.json({ message: 'Login successful', token ,user:{
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      verified: user.isVerified,
+      profilePicture: user.profilePicture
+      
+      
+      
+    }});
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
 // GET PROFILE
-exports.profile = async (req, res) => {
+exports.getProfile = async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      const user = await User.findByPk(userId, {
+        attributes: { exclude: ['password', 'otp', 'otpExpiry'] },
+        include: [
+          {
+            model: Group,
+            as: 'createdGroups',
+            attributes: ['id', 'groupName', 'status']
+          }
+        ]
+      });
+
+      res.json({
+        success: true,
+        data: user
+      });
+    } catch (error) {
+      console.error('Get profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch profile',
+        error: error.message
+      });
+    }
+  },
+
+
+
+
+exports.updateProfile = async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] },
-      include: db.Wallet,
+    const userId = req.user.id;
+    const { name, phone } = req.body;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updateData = {};
+    if (name) updateData.name = nameToTitleCase(name);
+    if (phone) updateData.phone = phone;
+
+    // Handle profile picture upload
+    if (req.file) {
+      try {
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: 'splita/profiles',
+          public_id: `user_${userId}`,
+          overwrite: true,
+          transformation: [
+            { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+            { quality: 'auto' }
+          ]
+        });
+
+        updateData.profilePicture = result.secure_url;
+
+        // Delete local file
+        fs.unlinkSync(req.file.path);
+      } catch (uploadError) {
+        console.error('Cloudinary upload error:', uploadError);
+        return res.status(500).json({ message: 'Failed to upload image' });
+      }
+    }
+
+    await user.update(updateData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        profilePicture: user.profilePicture
+      }
     });
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -259,7 +354,6 @@ exports.deleteUser = async (req, res) => {
 };
 
 
-
 exports.forgotPassword = async (req, res) => {
     try {
         
@@ -273,18 +367,17 @@ exports.forgotPassword = async (req, res) => {
             });
         }
 
-        const resetToken = jwt.sign({
-            id: user.id,
-            email: user.email
-        }, process.env.JWT_SECRET, { expiresIn: '10m' }
-    );
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const resetLink = `${req.protocol}://${req.get(
-      "host"
-    )}/api/v1/user/reset-password?token=${resetToken}`;
+    const otpExpiry = Date.now() + 5 * 60 * 1000;
+
+    user.otp = otp;
+    user.otpExpiry = otpExpiry;
+
+    await user.save();
 
     
-    const html = passwordResetMail(user.name, resetLink);
+    const html = passwordResetMail(user.name, otp);
     await sendMail({
       email: user.email,
       subject: "Reset Your Password",
@@ -293,8 +386,9 @@ exports.forgotPassword = async (req, res) => {
 
     
     return res.status(200).json({
-      message: "Password reset link sent successfully. check your mail",
-      resetLink
+      message: "Reset password OTP code sent successfully. check your mail"
+      
+
     })
 
     } catch (error) {
@@ -308,29 +402,73 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
+    const { otp, newPassword, confirmNewPassword } = req.body;
 
-    if (!token || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: "Token and new password required" });
+    if (!otp || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({
+         message: "otp and new password and confirm new password required"
+         });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (newPassword !== confirmNewPassword) {
+        return res.status({
+            message: 'Password do not match'
+        })
+    }
 
-    const user = await User.findOne({ where: { id: decoded.id } });
-    if (!user) return res.status(404).json({ message: "User not found" });
+      const user = await User.findOne({ where: { otp } });
+    
+    if (!user) {
+        return res.status(400).json({
+             message: 'Invalid OTP'
+        });
+    } 
+
+    if (Date.now() > user.otpExpiry) {
+        return res.status(400).json({
+            message: 'OTP has expired'
+        })
+    }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
+
+    user.otp = null;
+    user.otpExpiry = null;
     await user.save();
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    console.error("Reset Password Error:", error.message);
-    if (error.name === "TokenExpiredError") {
-      return res.status(400).json({ message: "Reset link expired" });
-    }
-    res.status(400).json({ message: "Invalid or expired token" });
+    
+    res.status(400).json({ 
+        message: "Invalid or expired otp",
+        error: error.message 
+    });
 }
 };
+exports.getOneUser = async (req, res) => {
+  try {
+    const {id} = req.params;
+
+    const user = await User.findByPk(id, {
+      attributes: {  include: ['id', 'name', 'email']}
+    })
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      message: 'User retrieved successfully',
+      data: user
+    })
+
+  } catch (error) {
+    res.status(500).json({
+      message: 'Internal server error',
+      error: error.message
+    })
+  }
+}

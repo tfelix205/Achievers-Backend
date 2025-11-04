@@ -1,47 +1,84 @@
-const Sequelize = require('sequelize');
-require('dotenv').config();
+// const Sequelize = require('sequelize');
+// require('dotenv').config();
 
-const sequelize = new Sequelize(
-    process.env.DB_NAME,
-    process.env.DB_USER,
-    process.env.DB_PASS,
-    {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 5432,
-    dialect: process.env.DB_DIALECT  || "postgres",
-    logging: false,
-    dialectOptions: {
-      ssl: {
-        require: true,              //  Force SSL
-        rejectUnauthorized: false,  //  Allow self-signed certs (Render uses these)
-      },
-    },
-  },
-  
-);
+// const sequelize = new Sequelize(
+//     process.env.DB_NAME,
+//     process.env.DB_USER,
+//     process.env.DB_PASS,
+//     {
+//     host: process.env.DB_HOST,
+//     port: process.env.DB_PORT || 5432,
+//     dialect: process.env.DB_DIALECT  || "postgres",
+//     logging: false,
+//     dialectOptions: {
+//       ssl: {
+//         require: true,              //  Force SSL
+//         rejectUnauthorized: false,  //  Allow self-signed certs (Render uses these)
+//       },
 
-// const sequelize = new Sequelize('ajo_db', 'root', 'Backend8989', {
+//     },
+//   },
+// );
+
+// const sequelize = new Sequelize('ajo-schema', 'root', 'chichi2022', {
 //   host: 'localhost',
 //    dialect: 'mysql',
 //    logging:false 
 //  });
 
- (async () => {
+//  (async () => {
+//   try {
+//     await sequelize.authenticate();
+//     console.log(' Database connection has been established successfully.');
+//   } catch (error) {
+//     console.error(' Unable to connect to the database:', error);
+//   }
+// })();
+
+const Sequelize = require('sequelize');
+require('dotenv').config();
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const sequelize = isProduction
+  ? new Sequelize(
+      process.env.DB_NAME,
+      process.env.DB_USER,
+      process.env.DB_PASS,
+      {
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT || 5432,
+        dialect: process.env.DB_DIALECT || 'postgres',
+        logging: false,
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+        },
+      }
+    )
+  : new Sequelize('ajo-schema', 'root', 'chichi2022', {
+      host: 'localhost',
+      dialect: 'mysql',
+      logging: false,
+    });
+
+// Test connection
+(async () => {
   try {
     await sequelize.authenticate();
-    console.log(' Database connection has been established successfully.');
+    console.log('Database connection established successfully.');
   } catch (error) {
-    console.error(' Unable to connect to the database:', error);
+    console.error('Unable to connect to the database:', error);
   }
 })();
-
-
 
 // Models
 
 User = require('./user')(sequelize, Sequelize.DataTypes);
 const Group = require('./group')(sequelize, Sequelize.DataTypes);
-const Membership = require('./membership')(sequelize, Sequelize.DataTypes);
+const Membership = require('./groupMembers')(sequelize, Sequelize.DataTypes);
 const PayoutAccount = require('./payoutAccount')(sequelize, Sequelize.DataTypes);
 const Contribution = require('./contribution')(sequelize, Sequelize.DataTypes);
 const Cycle = require('./cycle')(sequelize, Sequelize.DataTypes);
@@ -97,5 +134,3 @@ module.exports = {
   Cycle,
   Payout,
 };
-
-
