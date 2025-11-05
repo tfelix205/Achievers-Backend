@@ -350,7 +350,7 @@ exports.joinGroup = async (req, res) => {
     if (!group) return res.status(404).json({ message: 'Group not found.' });
 
     const validUser = await User.findByPk(userId);
-    if ( !user ) {
+    if ( !validUser ) {
       return res.status(404).json({ message: 'User not found. please proceed to login' });
     }
 
