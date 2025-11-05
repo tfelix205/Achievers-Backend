@@ -151,11 +151,9 @@ exports.groupRegisterValidator = async (req, res, next) => {
         penaltyFee: Joi.number() // 
       .precision(2)
       .positive()
-      .required()
       .messages({
         'number.base': 'Penalty Fee must be a number',
         'number.positive': 'Penalty Fee must be greater than zero (0)',
-        'any.required': 'Penalty Fee is required',
         'number.precision': 'Penalty Fee can only have up to 2 decimal places',
       }),
 

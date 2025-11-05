@@ -329,7 +329,7 @@ exports.generateInviteLink = async (req, res) => {
     
     await group.update({ inviteCode });
 
-    res.status(200).json({ inviteCode });
+    res.status(200).json({ inviteLink });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -343,11 +343,16 @@ exports.generateInviteLink = async (req, res) => {
 exports.joinGroup = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { id } = req.params;
-    const { invite } = req.body;
+    const { id } = req.params; // get the group id from the params(link)
+    const { invite } = req.query;//get the invite code from the query
 
     const group = await Group.findByPk(id);
     if (!group) return res.status(404).json({ message: 'Group not found.' });
+
+    const validUser = await User.findByPk(userId);
+    if ( !user ) {
+      return res.status(404).json({ message: 'User not found. please proceed to login' });
+    }
 
   
     if (group.inviteCode !== invite) {
