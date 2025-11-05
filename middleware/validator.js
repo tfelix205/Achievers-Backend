@@ -1,4 +1,4 @@
-const Joi = require('joi')
+const Joi = require('joi');
 
 exports.registerValidator = async (req, res, next) => {
 
@@ -48,7 +48,7 @@ exports.registerValidator = async (req, res, next) => {
     });
 
     try {
-        await Schema.validateAsync(req.body, { abortEarly: false });
+        await Schema.validateAsync(req.body, { abortEarly: true });
 
         next();
 
@@ -74,7 +74,7 @@ exports.loginValidator = async (req, res, next) => {
   });
 
   try {
-    await schema.validateAsync(req.body, { abortEarly: false });
+    await schema.validateAsync(req.body, { abortEarly: true });
     next();
   } catch (error) {
     return res.status(400).json({

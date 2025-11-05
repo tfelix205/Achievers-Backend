@@ -324,7 +324,7 @@ exports.generateInviteLink = async (req, res) => {
     }
 
     const inviteCode = uuidv4().split('-')[0].toUpperCase();
-    const inviteLink = `${process.env.FRONTEND_URL}/join-group/${id}?invite=${inviteCode}`;
+    const inviteLink = `${process.env.FRONTEND_URL}/join_group/${id}?invite=${inviteCode}`;
 
     
     await group.update({ inviteCode });
@@ -398,9 +398,18 @@ const user = await User.findByPk(userId);
        ),
      });
    }
+        const groupInfo = {
+          groupName: group.groupName,
+          admin: await User.findByPk(group.adminId, { attributes: ['id', 'name', 'email'] }),
+          contributionAmount: group.contributionAmount,
+          totalMembers: group.totalMembers,
+          availableSpots: group.totalMembers - (await Membership.count({ where: { groupId: id, status: 'active' } })) ,
 
+        }
     res.status(200).json({
-      message: 'Join request sent successfully. Waiting for admin approval.'
+      message: 'Join request sent successfully. Waiting for admin approval.',
+      group: groupInfo
+
     });
   } catch (error) {
     console.error(error);
