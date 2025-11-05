@@ -553,6 +553,23 @@ exports.startCycle = async (req, res) => {
       });
     }
 
+    const membersWithoutPayout = await Membership.findAll({
+  where: { groupId: id, status: 'active' },
+  include: [{
+    model: PayoutAccount,
+    as: 'payoutAccount',
+    required: false
+  }]
+});
+
+const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
+if (invalid.length > 0) {
+  return res.status(400).json({
+    message: `${invalid.length} member(s) haven't set up payout accounts`,
+    members: invalid.map(m => m.user.name)
+  });
+}
+
     // Get members ordered by payoutOrder (or createdAt if not set)
     const members = await Membership.findAll({
       where: { groupId: id, status: 'active' },
@@ -915,107 +932,107 @@ exports.randomizePayoutOrder = async (req, res) => {
 
 
 // member to make a contribution
-exports.makeContribution = async (req, res) => {
-  const t = await sequelize.transaction();
+// exports.makeContribution = async (req, res) => {
+//   const t = await sequelize.transaction();
   
-  try {
-    const userId = req.user.id;
-    const { id } = req.params;
-    const { amount } = req.body;
+//   try {
+//     const userId = req.user.id;
+//     const { id } = req.params;
+//     const { amount } = req.body;
 
-    const group = await Group.findByPk(id);
-    if (!group) {
-      await t.rollback();
-      return res.status(404).json({ message: 'Group not found.' });
-    }
+//     const group = await Group.findByPk(id);
+//     if (!group) {
+//       await t.rollback();
+//       return res.status(404).json({ message: 'Group not found.' });
+//     }
 
-    const cycle = await Cycle.findOne({ where: { groupId: id, status: 'active' } });
-    if (!cycle) {
-      await t.rollback();
-      return res.status(400).json({ message: 'No active cycle for this group.' });
-    }
+//     const cycle = await Cycle.findOne({ where: { groupId: id, status: 'active' } });
+//     if (!cycle) {
+//       await t.rollback();
+//       return res.status(400).json({ message: 'No active cycle for this group.' });
+//     }
 
-    // Verify member
-    const membership = await Membership.findOne({
-      where: { userId, groupId: id, status: 'active' },
-    });
-    if (!membership) {
-      await t.rollback();
-      return res.status(403).json({ message: 'You are not a member of this group.' });
-    }
+//     // Verify member
+//     const membership = await Membership.findOne({
+//       where: { userId, groupId: id, status: 'active' },
+//     });
+//     if (!membership) {
+//       await t.rollback();
+//       return res.status(403).json({ message: 'You are not a member of this group.' });
+//     }
 
-    // Check contribution
-    const existing = await Contribution.findOne({ where: { userId, cycleId: cycle.id } });
-    if (existing) {
-      await t.rollback();
-      return res.status(400).json({ message: 'Already contributed this round.' });
-    }
+//     // Check contribution
+//     const existing = await Contribution.findOne({ where: { userId, cycleId: cycle.id } });
+//     if (existing) {
+//       await t.rollback();
+//       return res.status(400).json({ message: 'Already contributed this round.' });
+//     }
 
-    // Penalty / Validation
-    const expectedAmount = parseFloat(group.contributionAmount);
-    const paidAmount = parseFloat(amount);
+//     // Penalty / Validation
+//     const expectedAmount = parseFloat(group.contributionAmount);
+//     const paidAmount = parseFloat(amount);
 
-    if (Math.abs(paidAmount - expectedAmount) > 0.01) {
-      await t.rollback();
-      return res.status(400).json({
-        message: `Contribution amount must be ${expectedAmount}. You sent ${paidAmount}`,
-      });
-    }
+//     if (Math.abs(paidAmount - expectedAmount) > 0.01) {
+//       await t.rollback();
+//       return res.status(400).json({
+//         message: `Contribution amount must be ${expectedAmount}. You sent ${paidAmount}`,
+//       });
+//     }
 
-    const penalty = paidAmount < expectedAmount ? group.penaltyFee : 0;
+//     const penalty = paidAmount < expectedAmount ? group.penaltyFee : 0;
 
-    // Record contribution
-    const contribution = await Contribution.create(
-      {
-        userId,
-        groupId: id,
-        cycleId: cycle.id,
-        amount,
-        status: 'paid',
-        penaltyFee: penalty,
-        contributionDate: new Date(),
-      },
-      { transaction: t }
-    );
+//     // Record contribution
+//     const contribution = await Contribution.create(
+//       {
+//         userId,
+//         groupId: id,
+//         cycleId: cycle.id,
+//         amount,
+//         status: 'paid',
+//         penaltyFee: penalty,
+//         contributionDate: new Date(),
+//       },
+//       { transaction: t }
+//     );
 
-     // Send an email to the user when contribution is received
-    const user = await User.findByPk(userId);
-    const dateString = new Date().toISOString().split('T')[0];
+//      // Send an email to the user when contribution is received
+//     const user = await User.findByPk(userId);
+//     const dateString = new Date().toISOString().split('T')[0];
 
-    if (user && user.email) {
-      await sendMail({
-        email: user.email,
-        subject: 'Contribution Received',
-        html: contributionReceivedMail(user.name, group.groupName, amount, dateString),
-      });
-    }
+//     if (user && user.email) {
+//       await sendMail({
+//         email: user.email,
+//         subject: 'Contribution Received',
+//         html: contributionReceivedMail(user.name, group.groupName, amount, dateString),
+//       });
+//     }
 
-    // Check if all members have contributed
-    const allContributions = await Contribution.count({ where: { cycleId: cycle.id } });
-    const activeMembers = await Membership.count({ where: { groupId: id, status: 'active' } });
+//     // Check if all members have contributed
+//     const allContributions = await Contribution.count({ where: { cycleId: cycle.id } });
+//     const activeMembers = await Membership.count({ where: { groupId: id, status: 'active' } });
 
-    if (allContributions === activeMembers && cycle.status === 'active') {
-      try {
-        await handlePayoutAndRotate(cycle.id, group.id);
-      } catch (error) {
-        console.error('Payout rotation error:', error);
-      }
-    }
+//     if (allContributions === activeMembers && cycle.status === 'active') {
+//       try {
+//         await handlePayoutAndRotate(cycle.id, group.id);
+//       } catch (error) {
+//         console.error('Payout rotation error:', error);
+//       }
+//     }
 
-    await t.commit();
+//     await t.commit();
 
-    return res.status(200).json({
-      message: 'Contribution successful.',
-      contribution,
-      penaltyApplied: penalty > 0,
-    });
+//     return res.status(200).json({
+//       message: 'Contribution successful.',
+//       contribution,
+//       penaltyApplied: penalty > 0,
+//     });
 
-  } catch (error) {
-    await t.rollback();
-    console.error(error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
+//   } catch (error) {
+//     await t.rollback();
+//     console.error(error);
+//     return res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// };
 
 
 // handle payout and cycle rotation

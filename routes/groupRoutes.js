@@ -36,7 +36,7 @@ router.get('/:id/payout-order', authenticate, getPayoutOrder);
 router.put('/:id/payout-order', authenticate, setPayoutOrder);
 router.post('/:id/randomize-payout-order', authenticate, randomizePayoutOrder);
 router.post('/:id/start-cycle', authenticate, startCycle);
-router.post('/:id/contribute', authenticate, makeContribution);
+// router.post('/:id/contribute', authenticate, makeContribution);
 router.post('/:id/end-cycle', authenticate, endCycle);
 
 
@@ -642,42 +642,6 @@ module.exports = router;
  *         description: A cycle is already active or not enough members
  *       403:
  *         description: Only admin can start a cycle
- *       404:
- *         description: Group not found
- */
-
-/**
- * @swagger
- * /api/groups/{id}/contribute:
- *   post:
- *     summary: Make a contribution in the active cycle
- *     tags: [Groups]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - amount
- *             properties:
- *               amount:
- *                 type: number
- *     responses:
- *       200:
- *         description: Contribution successful
- *       400:
- *         description: Already contributed or invalid amount
- *       403:
- *         description: User not a member
  *       404:
  *         description: Group not found
  */
