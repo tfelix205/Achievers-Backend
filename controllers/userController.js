@@ -5,7 +5,7 @@ const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
 const { sendMail } = require('../utils/sendgrid');
 const { passwordResetMail } = require('../utils/resetPasswordMail')
-const nameToTitleCase = require('../helper/nameConverter');
+const {nameToTitleCase} = require('../helper/nameConverter');
 const cloudinary = require('../config/cloudinary');
 const fs = require('fs');
 
