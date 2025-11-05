@@ -206,7 +206,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{id}/invite:
+ * /api/groups/{id}/invite:
  *   post:
  *     summary: Generate an invite link for a group
  *     description: Only the group admin can generate an invite link. The link allows other users to request to join the group.
@@ -243,7 +243,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/join/{id}/{invite}:
+ * /api/groups/join/{id}/{invite}:
  *   post:
  *     summary: Join a group using an invite link
  *     description: Allows an authenticated user to request to join a group using a valid invite code.
