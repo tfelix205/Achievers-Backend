@@ -324,7 +324,7 @@ exports.generateInviteLink = async (req, res) => {
     }
 
     const inviteCode = uuidv4().split('-')[0].toUpperCase();
-    const inviteLink = `${process.env.FRONTEND_URL}/join_group/${id}?invite=${inviteCode}`;
+    const inviteLink = `${process.env.FRONTEND_URL}/join_group/${id}/${inviteCode}`;
 
     
     await group.update({ inviteCode });
@@ -344,7 +344,7 @@ exports.joinGroup = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params; // get the group id from the params(link)
-    const { invite } = req.query;//get the invite code from the query
+    const { invite } = req.params;//get the invite code from the query
 
     const group = await Group.findByPk(id);
     if (!group) return res.status(404).json({ message: 'Group not found.' });

@@ -25,7 +25,7 @@ router.post('/create', authenticate, groupRegisterValidator, createGroup);
 router.get('/all', authenticate, getUserGroups);
 router.get('/:id', authenticate, getGroupDetails);
 router.get('/:id/invite', authenticate, generateInviteLink);
-router.post('/:id/join', authenticate, joinGroup);
+router.post('/:id/:invite', authenticate, joinGroup);
 router.get('/:id/summary', authenticate, getGroupSummary);
 
 
@@ -206,56 +206,104 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/invite:
- *   get:
- *     summary: Generate an invite link for the group (Admin only)
+ * /groups/{id}/invite:
+ *   post:
+ *     summary: Generate an invite link for a group
+ *     description: Only the group admin can generate an invite link. The link allows other users to request to join the group.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: id
- *         in: path
- *         description: Group ID
+ *       - in: path
+ *         name: id
  *         required: true
+ *         description: The ID of the group.
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Invite link generated successfully
+ *         description: Successfully generated invite link.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 inviteLink:
+ *                   type: string
+ *                   example: https://yourfrontend.com/join_group/1234/ABCD12
  *       403:
- *         description: Only admin can generate invite links
+ *         description: Only the group admin can generate invite links.
  *       404:
- *         description: Group not found
+ *         description: Group not found.
+ *       500:
+ *         description: Server error.
  */
+
+
 
 /**
  * @swagger
- * /api/groups/{id}/join:
+ * /groups/join/{id}/{invite}:
  *   post:
- *     summary: Request to join a group using an invite link
+ *     summary: Join a group using an invite link
+ *     description: Allows an authenticated user to request to join a group using a valid invite code.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: id
- *         in: path
- *         description: Group ID
+ *       - in: path
+ *         name: id
  *         required: true
+ *         description: The ID of the group.
  *         schema:
  *           type: string
- *       - name: invite
- *         in: query
- *         description: Invite code
+ *       - in: path
+ *         name: invite
  *         required: true
+ *         description: The unique invite code associated with the group.
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Join request sent
+ *         description: Join request sent successfully. Waiting for admin approval.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Join request sent successfully. Waiting for admin approval.
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     groupName:
+ *                       type: string
+ *                       example: Achievers Group
+ *                     admin:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                     contributionAmount:
+ *                       type: number
+ *                       example: 10000
+ *                     totalMembers:
+ *                       type: integer
+ *                       example: 10
+ *                     availableSpots:
+ *                       type: integer
+ *                       example: 3
  *       400:
- *         description: Invalid or expired invite link
+ *         description: Invalid or expired invite link, or missing payout account.
  *       404:
- *         description: Group not found
+ *         description: Group or user not found.
+ *       500:
+ *         description: Server error.
  */
 
 /**
