@@ -208,21 +208,21 @@ module.exports = router;
  * @swagger
  * /api/groups/{id}/invite:
  *   post:
- *     summary: Generate an invite link for a group
- *     description: Only the group admin can generate an invite link. The link allows other users to request to join the group.
+ *     summary: Generate an invite link for the group (Admin only)
+ *     description: Only the group admin can generate an invite link that other users can use to join the group.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
+ *         description: The ID of the group
  *         required: true
- *         description: The ID of the group.
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Successfully generated invite link.
+ *         description: Invite link generated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -230,42 +230,40 @@ module.exports = router;
  *               properties:
  *                 inviteLink:
  *                   type: string
- *                   example: https://yourfrontend.com/join_group/1234/ABCD12
+ *                   example: https://frontend.com/join_group/1234/ABCD12
  *       403:
- *         description: Only the group admin can generate invite links.
+ *         description: Only the group admin can generate invite links
  *       404:
- *         description: Group not found.
+ *         description: Group not found
  *       500:
- *         description: Server error.
+ *         description: Server error
  */
-
-
 
 /**
  * @swagger
  * /api/groups/join/{id}/{invite}:
  *   post:
- *     summary: Join a group using an invite link
+ *     summary: Request to join a group using an invite link
  *     description: Allows an authenticated user to request to join a group using a valid invite code.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
+ *       - name: id
+ *         in: path
+ *         description: The ID of the group
  *         required: true
- *         description: The ID of the group.
  *         schema:
  *           type: string
- *       - in: path
- *         name: invite
+ *       - name: invite
+ *         in: path
+ *         description: The invite code from the invite link
  *         required: true
- *         description: The unique invite code associated with the group.
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Join request sent successfully. Waiting for admin approval.
+ *         description: Join request sent successfully and pending admin approval
  *         content:
  *           application/json:
  *             schema:
@@ -285,10 +283,13 @@ module.exports = router;
  *                       properties:
  *                         id:
  *                           type: string
+ *                           example: 1
  *                         name:
  *                           type: string
+ *                           example: John Doe
  *                         email:
  *                           type: string
+ *                           example: johndoe@example.com
  *                     contributionAmount:
  *                       type: number
  *                       example: 10000
@@ -299,12 +300,13 @@ module.exports = router;
  *                       type: integer
  *                       example: 3
  *       400:
- *         description: Invalid or expired invite link, or missing payout account.
+ *         description: Invalid or expired invite link, or user missing payout account
  *       404:
- *         description: Group or user not found.
+ *         description: Group or user not found
  *       500:
- *         description: Server error.
+ *         description: Server error
  */
+
 
 /**
  * @swagger
