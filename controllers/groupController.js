@@ -344,7 +344,7 @@ exports.joinGroup = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params; // get the group id from the params(link)
-    const { invite } = req.params;//get the invite code from the query
+    const { invite } = req.params;//get the invite code from the params
 
     const group = await Group.findByPk(id);
     if (!group) return res.status(404).json({ message: 'Group not found.' });

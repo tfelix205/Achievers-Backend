@@ -24,7 +24,7 @@ const {groupRegisterValidator} = require('../middleware/validator')
 router.post('/create', authenticate, groupRegisterValidator, createGroup);
 router.get('/all', authenticate, getUserGroups);
 router.get('/:id', authenticate, getGroupDetails);
-router.get('/:id/invite', authenticate, generateInviteLink);
+router.get('/generate-invite/:id', authenticate, generateInviteLink);
 router.post('/:id/:invite', authenticate, joinGroup);
 router.get('/:id/summary', authenticate, getGroupSummary);
 
@@ -206,8 +206,8 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/invite:
- *   post:
+ * /api/groups/generate-invite/{id}:
+ *   get:
  *     summary: Generate an invite link for the group (Admin only)
  *     description: Only the group admin can generate an invite link that other users can use to join the group.
  *     tags: [Groups]
