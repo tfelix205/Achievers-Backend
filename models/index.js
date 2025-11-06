@@ -127,6 +127,9 @@ Payout.belongsTo(Cycle, { foreignKey: 'cycleId', as: 'cycle' });
 //membership
 User.hasMany(Membership, { foreignKey: 'userId', as: 'memberships' });
 Membership.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Membership.hasOne(PayoutAccount, { foreignKey: 'membershipId', as: 'payoutAccount' });
+PayoutAccount.belongsTo(Membership, { foreignKey: 'membershipId', as: 'membership' });
+
 
 // Exporting  all models so they can be accessed in controllers and jobs
 module.exports = {
