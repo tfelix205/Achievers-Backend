@@ -791,3 +791,111 @@ module.exports = router;
  *                 error:
  *                   type: string
  */
+
+
+/**
+ * @swagger
+ * /api/groups/{id}:
+ *   delete:
+ *     summary: Delete a group (Admin only)
+ *     description: >
+ *       Permanently deletes a group and all related records, including memberships, cycles,
+ *       payouts, and contributions. Only the group admin can perform this action.  
+ *       <br><br>
+ *       ⚠️ **Important:** A group cannot be deleted if it has an active cycle or pending payouts.
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the group to delete
+ *         schema:
+ *           type: string
+ *           example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Group deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Group deleted successfully."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     groupName:
+ *                       type: string
+ *                       example: "Family Savings Club"
+ *                     membersNotified:
+ *                       type: integer
+ *                       example: 12
+ *                     contributionsDeleted:
+ *                       type: integer
+ *                       example: 120
+ *       400:
+ *         description: Cannot delete due to active cycle or pending payouts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Cannot delete group with an active cycle. Please end the cycle first."
+ *                 suggestion:
+ *                   type: string
+ *                   example: "Use the end-cycle endpoint first."
+ *       403:
+ *         description: Only the group admin can delete this group
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Only the group admin can delete this group."
+ *       404:
+ *         description: Group not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Group not found."
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Unexpected error occurred."
+ *                 error:
+ *                   type: string
+ *                   example: "server error"
+ */
