@@ -30,7 +30,7 @@ router.delete('/:id', authenticate, deleteGroup);
 
 // invite & membership routes
 router.get('/generate-invite/:id', authenticate, generateInviteLink);
-router.post('/:id/:invite', authenticate, joinGroup);
+router.post('/join/:id/:invite', authenticate, joinGroup);
 router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
 
 //payout management
