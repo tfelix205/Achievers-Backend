@@ -17,30 +17,35 @@ const {groupRegisterValidator} = require('../middleware/validator')
   endCycle,
   getPayoutOrder,
   setPayoutOrder,
-  randomizePayoutOrder
+  randomizePayoutOrder,
+  deleteGroup
 } = require('../controllers/groupController');
 
-
+//group management routes
 router.post('/create', authenticate, groupRegisterValidator, createGroup);
 router.get('/all', authenticate, getUserGroups);
 router.get('/:id', authenticate, getGroupDetails);
+router.get('/:id/summary', authenticate, getGroupSummary);
+router.delete('/:id', authenticate, deleteGroup);
+
+// invite & membership routes
 router.get('/generate-invite/:id', authenticate, generateInviteLink);
 router.post('/:id/:invite', authenticate, joinGroup);
-router.get('/:id/summary', authenticate, getGroupSummary);
+router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
 
-
+//payout management
 router.post('/payout-account', authenticate, addPayoutAccount);
 // router.post('/:groupId/attach-payout', authenticate, attachPayoutToGroup);
-router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
 router.get('/:id/payout-order', authenticate, getPayoutOrder);
 router.put('/:id/payout-order', authenticate, setPayoutOrder);
 router.post('/:id/randomize-payout-order', authenticate, randomizePayoutOrder);
+
+// cycle management
 router.post('/:id/start-cycle', authenticate, startCycle);
-// router.post('/:id/contribute', authenticate, makeContribution);
 router.post('/:id/end-cycle', authenticate, endCycle);
 
-
-
+//options
+// router.post('/:id/contribute', authenticate, makeContribution);
 
 
 

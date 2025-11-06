@@ -837,8 +837,8 @@ exports.setPayoutOrder = async (req, res) => {
     }
     console.error('Set payout order error:', error);
     return res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
+      message: `${error.message}`, 
+      error:  'Server error'
     });
   }
 };
@@ -923,8 +923,8 @@ exports.randomizePayoutOrder = async (req, res) => {
     }
     console.error('Randomize payout order error:', error);
     return res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
+      message: `Randomize payout order failed because: ${error.message}` , 
+      error:  'Server error'
     });
   }
 };
@@ -1073,7 +1073,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       amount: totalAmount.toFixed(2),
       commissionFee: commissionFee.toFixed(2),
       penaltyFee: totalPenalties.toFixed(2),
-      status: 'completed',
+      status: 'pending',
       payoutDate: new Date(),
     });
 
@@ -1098,6 +1098,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       await cycle.update({
         currentRound: cycle.currentRound + 1,
         activeMemberId: nextMember.userId,
+        currentRoundStartDate: new Date()
       });
 
       //  Mark contributions as completed (don't delete for history)
@@ -1111,12 +1112,13 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
         for (const member of members) {
           await sendMail({
             email: member.user.email,
-            subject: `Round ${cycle.currentRound} Started - ${group.groupName}`,
+            subject: `Round ${cycle.currentRound} Completed - ${group.groupName}`,
             html: cycleCompletedMail(
            member.User.name,
            group.groupName,
-           group.contributionAmount,
-           dateString
+           totalAmount.toFixed(2),
+           cycle.startDate.toISOString().split('T')[0],
+           new Date().toISOString().split('T')[0],
          )
           });
         }
@@ -1141,6 +1143,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
               <p>Hi ${member.user.name},</p>
               <p> Congratulations! The cycle for <b>${group.groupName}</b> has completed successfully!</p>
               <p>All ${members.length} members have received their payouts.</p>
+              <p> Total payout amount was <b>$${finalAmount * members.length}</b>, after a commission of <b>$${commissionFee.toFixed(2)}</b>.</p>
               <p>Thank you for participating!</p>
             `
           });
@@ -1149,11 +1152,159 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
         console.error('Completion email error:', emailError.message);
       }
     }
+    return {success: true, Payout}
   } catch (error) {
     console.error('Payout and rotate error:', error);
     throw error;
   }
 };
+
+// Add delete group function
+exports.deleteGroup = async (req, res) => {
+  const t = await Group.sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const group = await Group.findByPk(id, { transaction: t });
+    
+    if (!group) {
+      await t.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Group not found.' 
+      });
+    }
+
+    // Only admin can delete
+    if (group.adminId !== userId) {
+      await t.rollback();
+      return res.status(403).json({ 
+        success: false,
+        message: 'Only the group admin can delete this group.' 
+      });
+    }
+
+    // Check if there's an active cycle
+    const activeCycle = await Cycle.findOne({
+      where: { groupId: id, status: 'active' },
+      transaction: t
+    });
+
+    if (activeCycle) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'Cannot delete group with an active cycle. Please end the cycle first.',
+        suggestion: 'Use the end-cycle endpoint first.'
+      });
+    }
+
+    // Check for pending payouts
+    const pendingPayouts = await Payout.count({
+      where: { 
+        groupId: id, 
+        status: 'pending' 
+      },
+      transaction: t
+    });
+
+    if (pendingPayouts > 0) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: `Cannot delete group with ${pendingPayouts} pending payout(s). Please complete all payouts first.`
+      });
+    }
+
+    // Get group stats before deletion
+    const members = await Membership.findAll({
+      where: { groupId: id },
+      include: [{ model: User, as: 'user', attributes: ['email', 'name'] }],
+      transaction: t
+    });
+
+    const totalContributions = await Contribution.count({
+      where: { groupId: id },
+      transaction: t
+    });
+
+    // Delete in order (respecting foreign keys)
+    // 1. Delete contributions
+    await Contribution.destroy({ 
+      where: { groupId: id }, 
+      transaction: t 
+    });
+
+    // 2. Delete payouts
+    await Payout.destroy({ 
+      where: { groupId: id }, 
+      transaction: t 
+    });
+
+    // 3. Delete cycles
+    await Cycle.destroy({ 
+      where: { groupId: id }, 
+      transaction: t 
+    });
+
+    // 4. Delete memberships
+    await Membership.destroy({ 
+      where: { groupId: id }, 
+      transaction: t 
+    });
+
+    // 5. Finally delete the group
+    await group.destroy({ transaction: t });
+
+    await t.commit();
+
+    // Send notification emails to all members
+    try {
+      const { sendMail } = require('../utils/sendgrid');
+      for (const member of members) {
+        if (member.user && member.user.email) {
+          await sendMail({
+            email: member.user.email,
+            subject: 'Group Deleted - ' + group.groupName,
+            html: `
+              <p>Hi ${member.user.name},</p>
+              <p>The group <b>${group.groupName}</b> has been deleted by the admin.</p>
+              ${totalContributions > 0 ? `<p>Total contributions made: <b>${totalContributions}</b></p>` : ''}
+              <p>Thank you for being part of this group.</p>
+            `
+          });
+        }
+      }
+    } catch (emailError) {
+      console.error('Delete notification email error:', emailError);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Group deleted successfully.',
+      data: {
+        groupName: group.groupName,
+        membersNotified: members.length,
+        contributionsDeleted: totalContributions
+      }
+    });
+
+  } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error('Delete group error:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: error.message, 
+      error:  'server error'
+    });
+  }
+};
+
+
 
 // admin to end cycle
 exports.endCycle = async (req, res) => {
