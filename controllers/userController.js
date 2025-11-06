@@ -225,7 +225,7 @@ exports.getProfile = async (req, res) => {
         include: [
           {
             model: Group,
-            as: 'createdGroups',
+            as: 'groups',
             attributes: ['id', 'groupName', 'status']
           }
         ]
@@ -451,7 +451,7 @@ exports.getOneUser = async (req, res) => {
     const {id} = req.params;
 
     const user = await User.findByPk(id, {
-      attributes: {  include: ['id', 'name', 'email']}
+      attributes: {  exclude: ['password', 'otp', 'otpExpiry']}
     })
 
     if (!user) {
