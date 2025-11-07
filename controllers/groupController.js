@@ -93,35 +93,63 @@ group.groupName,
 
 //  Add payout account for user
 exports.addPayoutAccount = async (req, res) => {
+  const transaction = await PayoutAccount.sequelize.transaction();
+
   try {
     const userId = req.user.id;
     const { bankName, accountNumber, isDefault } = req.body;
 
     if (!bankName || !accountNumber) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Bank name and account number are required.' });
     }
 
-    // If isDefault = true, reset others
+    const normalizedBankName = bankName.trim();
+    const normalizedAccountNumber = accountNumber.trim();
+
+    // Find active membership (you may change this to specific group if needed)
+    const membership = await Membership.findOne({
+      where: { userId, status: 'active' },
+      transaction
+    });
+
+    if (!membership) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'No active membership found for this user.' });
+    }
+
+    // If this account is default, reset others first
     if (isDefault) {
       await PayoutAccount.update(
         { isDefault: false },
-        { where: { userId } }
+        { where: { userId }, transaction }
       );
     }
 
-    const payout = await PayoutAccount.create({
-      userId,
-      bankName: bankName.trim().toLowerCase(),
-      accountNumber: accountNumber.trim(),
-      isDefault: !!isDefault
-    });
+    // Create payout account and link to membership
+    const payout = await PayoutAccount.create(
+      {
+        userId,
+        membershipId: membership.id, 
+        bankName: normalizedBankName,
+        accountNumber: normalizedAccountNumber,
+        isDefault: !!isDefault,
+      },
+      { transaction }
+    );
+
+    // Update membership to use this payout account
+    await membership.update({ payoutAccountId: payout.id }, { transaction });
+
+    await transaction.commit();
 
     res.status(200).json({
       message: 'Payout account added successfully.',
-      payout
+      payout,
     });
   } catch (error) {
-    console.error(error);
+    if (transaction && !transaction.finished) await transaction.rollback();
+    console.error('Add payout account error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -605,20 +633,31 @@ exports.startCycle = async (req, res) => {
       });
     }
 
-    const membersWithoutPayout = await Membership.findAll({
+   const membersWithoutPayout = await Membership.findAll({
   where: { groupId: id, status: 'active' },
-  include: [{
-    model: PayoutAccount,
-    as: 'payoutAccount',
-    required: false
-  }]
+  include: [
+    {
+      model: PayoutAccount,
+      as: 'payoutAccount',
+      required: false
+    },
+    {
+      model: User,
+      as: 'user',
+      attributes: ['id', 'name', 'email']
+    }
+  ],
+  transaction: t
 });
 
+// Filter members that do not have a payout account
 const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
+
 if (invalid.length > 0) {
+  await t.rollback();
   return res.status(400).json({
-    message: `${invalid.length} member(s) haven't set up payout accounts`,
-    members: invalid.map(m => m.user.name)
+    message: `${invalid.length} member(s) haven't set up payout accounts.`,
+    members: invalid.map(m => m.user?.name || 'Unknown User')
   });
 }
 
