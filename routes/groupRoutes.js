@@ -19,7 +19,8 @@ const {groupRegisterValidator} = require('../middleware/validator')
   setPayoutOrder,
   randomizePayoutOrder,
   deleteGroup,
-  getAllPendingRequest
+  getAllPendingRequest,
+  getAllApprovedMembers
 } = require('../controllers/groupController');
 
 //group management routes
@@ -34,6 +35,7 @@ router.get('/generate-invite/:id', authenticate, generateInviteLink);
 router.post('/join/:id/:invite', authenticate, joinGroup);
 router.get('/:groupId/pending-requests', authenticate, getAllPendingRequest);
 router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
+router.get('/:groupId/approved-members', authenticate, getAllApprovedMembers)
 
 //payout management
 router.post('/payout-account', authenticate, addPayoutAccount);
@@ -502,6 +504,121 @@ module.exports = router;
  *       404:
  *         description: Group or request not found
  */
+
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/approved-members:
+ *   get:
+ *     summary: Get all approved (active) members in a group
+ *     description: Returns a list of all approved members (status = active) for a specific group. Only the group admin can access this endpoint.
+ *     tags:
+ *       - Groups
+ *     security:
+ *       - bearerAuth: []   # JWT or similar authentication
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "9e46ad80-61c7-11ef-8b85-0242ac120004"
+ *         description: The unique ID of the group whose approved members should be retrieved.
+ *     responses:
+ *       200:
+ *         description: Approved members retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Approved members retrieved successfully.
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "e9e4c2f1-7c2a-4f2b-bf83-872b9b723bd0"
+ *                     name:
+ *                       type: string
+ *                       example: "Investment Circle"
+ *                 Approved:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "b12345c6-7890-4a12-91d2-6543f9cdef12"
+ *                       user:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "1a2b3c4d"
+ *                           name:
+ *                             type: string
+ *                             example: "Jane Doe"
+ *                           email:
+ *                             type: string
+ *                             example: "jane@example.com"
+ *                           phone:
+ *                             type: string
+ *                             example: "+1234567890"
+ *                       payoutAccount:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "501"
+ *                           bankName:
+ *                             type: string
+ *                             example: "Access Bank"
+ *                           accountNumber:
+ *                             type: string
+ *                             example: "2233822822"
+ *                           isDefault:
+ *                             type: boolean
+ *                             example: true
+ *       403:
+ *         description: Only the admin can view approved members.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Only the admin can view approved members requests.
+ *       404:
+ *         description: Group not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Group not found.
+ *       500:
+ *         description: Server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
+ *                 error:
+ *                   type: string
+ *                   example: Detailed error message.
+ */
+
+
+
 
 /**
  * @swagger

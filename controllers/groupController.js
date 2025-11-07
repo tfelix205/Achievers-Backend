@@ -532,6 +532,58 @@ exports.manageJoinRequest = async (req, res) => {
 };
 
 
+// get all approved members
+exports.getAllApprovedMembers = async (req, res) => {
+  try {
+    const userId = req.user.id; 
+    const { groupId } = req.params; 
+
+    const group = await Group.findByPk(groupId);
+    if (!group) return res.status(404).json({ message: 'Group not found.' });
+
+
+    if (group.adminId !== userId) {
+      return res.status(403).json({ message: 'Only the admin can view approved members requests.' });
+    }
+
+    const ApprovedMembers = await Membership.findAll({
+      where: { groupId, status: 'active' },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'phone'],
+        },
+        {
+          model: PayoutAccount,
+          as: 'payoutAccount',
+          attributes: ['id', 'bankName', 'accountNumber', 'isDefault'],
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    if (ApprovedMembers.length === 0) {
+      return res.status(200).json({ message: 'No Approved Members yet.', requests: [] });
+    }
+
+    res.status(200).json({
+      message: 'Approved members retrieved successfully.',
+      group: {
+        id: group.id,
+        name: group.groupName,
+      },
+      Approved: ApprovedMembers,
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+
+
 
 //  Get group details
 exports.getGroupDetails = async (req, res) => {
