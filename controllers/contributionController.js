@@ -1,4 +1,5 @@
 const { sequelize, Group, Cycle, Membership, Contribution } = require('../models');
+const {Op} = require('sequelize')
 
 exports.makeContribution = async (req, res) => {
   const t = await sequelize.transaction();

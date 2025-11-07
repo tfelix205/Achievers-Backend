@@ -508,7 +508,6 @@ exports.manageJoinRequest = async (req, res) => {
     const group = await Group.findByPk(groupId);
     if (!group) return res.status(404).json({ message: 'Group not found.' });
 
-    
     if (group.adminId !== userId) {
       return res.status(403).json({ message: 'Only admin can manage join requests.' });
     }
@@ -519,12 +518,24 @@ exports.manageJoinRequest = async (req, res) => {
     if (!membership) return res.status(404).json({ message: 'Pending request not found.' });
 
     if (action === 'approve') {
+      // Check if group is full
+      const activeMembersCount = await Membership.count({
+        where: { groupId, status: 'active' }
+      });
+
+      if (activeMembersCount >= group.totalMembers) {
+        return res.status(400).json({ 
+          message: 'Cannot approve member. Group is already full.' 
+        });
+      }
+
       await membership.update({ status: 'active' });
     } else if (action === 'reject') {
       await membership.destroy();
     }
 
     res.status(200).json({ message: `Request ${action}ed successfully.` });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
