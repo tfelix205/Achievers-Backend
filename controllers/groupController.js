@@ -653,13 +653,13 @@ exports.startCycle = async (req, res) => {
 // Filter members that do not have a payout account
 const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
 
-if (invalid.length > 0) {
-  await t.rollback();
-  return res.status(400).json({
-    message: `${invalid.length} member(s) haven't set up payout accounts.`,
-    members: invalid.map(m => m.user?.name || 'Unknown User')
-  });
-}
+// if (invalid.length > 0) {
+//   await t.rollback();
+//   return res.status(400).json({
+//     message: `${invalid.length} member(s) haven't set up payout accounts.`,
+//     members: invalid.map(m => m.user?.name || 'Unknown User')
+//   });
+// }
 
     // Get members ordered by payoutOrder (or createdAt if not set)
     const members = await Membership.findAll({
