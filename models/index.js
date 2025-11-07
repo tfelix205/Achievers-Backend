@@ -58,7 +58,7 @@ const sequelize = isProduction
         },
       }
     )
-  : new Sequelize('ajo-schema', 'root', 'chichi2022', {
+  : new Sequelize('achievers', 'root', 'Backend8989', {
       host: 'localhost',
       dialect: 'mysql',
       logging: false,

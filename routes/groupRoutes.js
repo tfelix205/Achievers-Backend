@@ -18,7 +18,8 @@ const {groupRegisterValidator} = require('../middleware/validator')
   getPayoutOrder,
   setPayoutOrder,
   randomizePayoutOrder,
-  deleteGroup
+  deleteGroup,
+  getAllPendingRequest
 } = require('../controllers/groupController');
 
 //group management routes
@@ -31,6 +32,7 @@ router.delete('/:id', authenticate, deleteGroup);
 // invite & membership routes
 router.get('/generate-invite/:id', authenticate, generateInviteLink);
 router.post('/join/:id/:invite', authenticate, joinGroup);
+router.get('/:groupId/pending-requests', authenticate, getAllPendingRequest);
 router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
 
 //payout management
@@ -345,6 +347,121 @@ module.exports = router;
  *       500:
  *         description: Server error
  */
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/pending-requests:
+ *   get:
+ *     summary: Get all pending join requests for a group
+ *     description: Retrieve all pending join requests for a specific group. Only the group admin can access this endpoint.
+ *     tags:
+ *       - Groups
+ *     security:
+ *       - bearerAuth: []   # JWT or similar authentication
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the group
+ *     responses:
+ *       200:
+ *         description: List of pending requests retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Pending requests retrieved successfully.
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "12345"
+ *                     name:
+ *                       type: string
+ *                       example: "Investment Circle"
+ *                 requests:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "6789"
+ *                       user:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "1001"
+ *                           name:
+ *                             type: string
+ *                             example: "Jane Doe"
+ *                           email:
+ *                             type: string
+ *                             example: "jane@example.com"
+ *                           phoneNumber:
+ *                             type: string
+ *                             example: "+1234567890"
+ *                       payoutAccount:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "501"
+ *                           bankName:
+ *                             type: string
+ *                             example: "First Bank"
+ *                           accountNumber:
+ *                             type: string
+ *                             example: "1234567890"
+ *                           isDefault:
+ *                             type: boolean
+ *                             example: true
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-11-07T10:15:00.000Z"
+ *       403:
+ *         description: Only the admin can view pending requests.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Only the admin can view pending requests.
+ *       404:
+ *         description: Group not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Group not found.
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
+ *                 error:
+ *                   type: string
+ *                   example: Error message details
+ */
+
 
 /**
  * @swagger
