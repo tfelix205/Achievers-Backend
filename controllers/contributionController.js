@@ -1,12 +1,16 @@
-const { sequelize, Group, Cycle, Membership, Contribution } = require('../models');
+const { sequelize, Group, Cycle, Membership, Contribution, User } = require('../models');
 const {Op} = require('sequelize')
+const { sendMail } = require('../utils/sendgrid');
+const { contributionReceivedMail } = require('../utils/contributionReceivedMail');
+
+// Fixed makeContribution function in contributionController.js
 
 exports.makeContribution = async (req, res) => {
   const t = await sequelize.transaction();
   
   try {
     const userId = req.user.id;
-    const { groupId } = req.body; // Changed from params to body for consistency
+    const { groupId } = req.body;
     const { amount, paymentReference, paymentMethod = 'manual', paymentMetadata } = req.body;
 
     // Validate required fields
@@ -72,26 +76,25 @@ exports.makeContribution = async (req, res) => {
       }
     }
 
-    // Check if already contributed this CYCLE ROUND (not just today)
+    // ✅ Fixed: Check if already contributed this ROUND
+    const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
+    
     const existing = await Contribution.findOne({ 
       where: { 
         userId, 
         cycleId: cycle.id,
-        status: { [Op.in]: ['paid', 'completed'] }
+        status: { [Op.in]: ['paid', 'completed'] },
+        createdAt: { [Op.gte]: currentRoundStart } // ✅ Check from round start
       },
       transaction: t 
     });
     
     if (existing) {
-      // Check if it's from current round
-      const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
-      if (existing.createdAt >= currentRoundStart) {
-        await t.rollback();
-        return res.status(400).json({ 
-          success: false,
-          message: 'You have already contributed for this round.' 
-        });
-      }
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'You have already contributed for this round.' 
+      });
     }
 
     // Validate amount
@@ -108,49 +111,41 @@ exports.makeContribution = async (req, res) => {
 
     const penalty = paidAmount < expectedAmount ? group.penaltyFee : 0;
 
+    // Record contribution using findOrCreate for safety
     const [contribution, created] = await Contribution.findOrCreate({
-  where: { paymentReference: paymentReference },
-  defaults: { userId,
-      groupId,
-      cycleId: cycle.id,
-      amount: paidAmount,
-      status: 'paid',
-      penaltyFee: penalty,
-      contributionDate: new Date(),
-      paymentMethod: paymentMethod, 
-      paymentMetadata: paymentMetadata || null},
-  transaction: t,
-  lock: true 
-});
+      where: { 
+        userId,
+        cycleId: cycle.id,
+        createdAt: { [Op.gte]: currentRoundStart } // ✅ Ensure unique per round
+      },
+      defaults: { 
+        userId,
+        groupId,
+        cycleId: cycle.id,
+        amount: paidAmount,
+        status: 'paid',
+        penaltyFee: penalty,
+        contributionDate: new Date(),
+        paymentReference: paymentReference || null,
+        paymentMethod: paymentMethod, 
+        paymentMetadata: paymentMetadata || null
+      },
+      transaction: t,
+      lock: true 
+    });
 
-if (!created) {
-  await t.rollback();
-  return res.status(400).json({
-    message: 'Payment already processed'
-  });
-}
-
-    // Record contribution
-    // const contribution = await Contribution.create({
-    //   userId,
-    //   groupId,
-    //   cycleId: cycle.id,
-    //   amount: paidAmount,
-    //   status: 'paid',
-    //   penaltyFee: penalty,
-    //   contributionDate: new Date(),
-    //   paymentReference: paymentReference || null,
-    //   paymentMethod: paymentMethod, 
-    //   paymentMetadata: paymentMetadata || null
-    // }, { transaction: t });
+    if (!created) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'You have already contributed for this round'
+      });
+    }
 
     await t.commit();
 
     // Send contribution email
     try {
-      const { User } = require('../models');
-      const { sendMail } = require('../utils/sendgrid');
-      const { contributionReceivedMail } = require('../utils/contributionReceivedMail');
       
       const user = await User.findByPk(userId);
       if (user && user.email) {
@@ -169,13 +164,12 @@ if (!created) {
       console.error('Email notification error:', emailError);
     }
 
-    // Check if all members have contributed for THIS ROUND
-    const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
+    // ✅ Fixed: Check if all members contributed THIS ROUND
     const totalContributions = await Contribution.count({ 
       where: { 
         cycleId: cycle.id,
         status: { [Op.in]: ['paid', 'completed'] },
-        createdAt: { [Op.gte]: currentRoundStart }
+        createdAt: { [Op.gte]: currentRoundStart } // ✅ Count from round start
       } 
     });
     
@@ -221,7 +215,6 @@ if (!created) {
     return res.status(500).json({ 
       success: false,
       message: error.message 
-       
     });
   }
 };

@@ -1,4 +1,4 @@
-const { Group, Membership, User, Contribution, PayoutAccount, Cycle, Payout, sequelize } = require('../models');
+const { Group, Membership, User, Contribution, PayoutAccount, Cycle, Payout, sequelize, Sequelize } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 const {nameToTitleCase} = require('../helper/nameConverter');
 const { sendMail } = require('../utils/sendgrid');
@@ -101,58 +101,255 @@ exports.addPayoutAccount = async (req, res) => {
 
     if (!bankName || !accountNumber) {
       await transaction.rollback();
-      return res.status(400).json({ message: 'Bank name and account number are required.' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Bank name and account number are required.' 
+      });
     }
 
     const normalizedBankName = bankName.trim();
     const normalizedAccountNumber = accountNumber.trim();
 
-    // Find active membership (you may change this to specific group if needed)
-    const membership = await Membership.findOne({
-      where: { userId, status: 'active' },
+    // Check if user exists
+    const user = await User.findByPk(userId, { transaction });
+    if (!user) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found.' 
+      });
+    }
+
+    // Check for duplicate account
+    const existingAccount = await PayoutAccount.findOne({
+      where: { 
+        userId, 
+        accountNumber: normalizedAccountNumber 
+      },
       transaction
     });
 
-    if (!membership) {
+    if (existingAccount) {
       await transaction.rollback();
-      return res.status(400).json({ message: 'No active membership found for this user.' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'This account number is already registered.' 
+      });
     }
 
-    // If this account is default, reset others first
-    if (isDefault) {
+    //  If this is marked as default OR user has no payout accounts, make it default
+    const existingPayouts = await PayoutAccount.count({ 
+      where: { userId }, 
+      transaction 
+    });
+    
+    const shouldBeDefault = isDefault || existingPayouts === 0;
+
+    // If setting as default, reset other accounts
+    if (shouldBeDefault) {
       await PayoutAccount.update(
         { isDefault: false },
         { where: { userId }, transaction }
       );
     }
 
-    // Create payout account and link to membership
+    // Create payout account WITHOUT requiring membershipId
     const payout = await PayoutAccount.create(
       {
         userId,
-        membershipId: membership.id, 
+        membershipId: null, 
         bankName: normalizedBankName,
         accountNumber: normalizedAccountNumber,
-        isDefault: !!isDefault,
+        isDefault: shouldBeDefault,
       },
       { transaction }
     );
 
-    // Update membership to use this payout account
-    await membership.update({ payoutAccountId: payout.id }, { transaction });
+    await transaction.commit();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payout account added successfully.',
+      data: {
+        id: payout.id,
+        bankName: payout.bankName,
+        accountNumber: payout.accountNumber,
+        isDefault: payout.isDefault,
+        createdAt: payout.createdAt
+      }
+    });
+
+  } catch (error) {
+    if (transaction && !transaction.finished) await transaction.rollback();
+    console.error('Add payout account error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+
+
+exports.getUserPayoutAccounts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const payoutAccounts = await PayoutAccount.findAll({
+      where: { userId },
+      order: [
+        ['isDefault', 'DESC'], // Default account first
+        ['createdAt', 'DESC']
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      count: payoutAccounts.length,
+      data: payoutAccounts
+    });
+
+  } catch (error) {
+    console.error('Get payout accounts error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+
+
+
+exports.updatePayoutAccount = async (req, res) => {
+  const transaction = await PayoutAccount.sequelize.transaction();
+
+  try {
+    const userId = req.user.id;
+    const { payoutAccountId } = req.params;
+    const { bankName, accountNumber, isDefault } = req.body;
+
+    const payoutAccount = await PayoutAccount.findOne({
+      where: { id: payoutAccountId, userId },
+      transaction
+    });
+
+    if (!payoutAccount) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Payout account not found.' 
+      });
+    }
+
+    // If setting as default, reset other accounts
+    if (isDefault === true) {
+      await PayoutAccount.update(
+        { isDefault: false },
+        { where: { userId, id: { [Op.ne]: payoutAccountId } }, transaction }
+      );
+    }
+
+    // Update account
+    const updateData = {};
+    if (bankName) updateData.bankName = bankName.trim();
+    if (accountNumber) updateData.accountNumber = accountNumber.trim();
+    if (isDefault !== undefined) updateData.isDefault = isDefault;
+
+    await payoutAccount.update(updateData, { transaction });
 
     await transaction.commit();
 
     res.status(200).json({
-      message: 'Payout account added successfully.',
-      payout,
+      success: true,
+      message: 'Payout account updated successfully.',
+      data: payoutAccount
     });
+
   } catch (error) {
     if (transaction && !transaction.finished) await transaction.rollback();
-    console.error('Add payout account error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Update payout account error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
+
+
+exports.deletePayoutAccount = async (req, res) => {
+  const transaction = await PayoutAccount.sequelize.transaction();
+
+  try {
+    const userId = req.user.id;
+    const { payoutAccountId } = req.params;
+
+    const payoutAccount = await PayoutAccount.findOne({
+      where: { id: payoutAccountId, userId },
+      transaction
+    });
+
+    if (!payoutAccount) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Payout account not found.' 
+      });
+    }
+
+    // Check if account is linked to any active memberships
+    const linkedMemberships = await Membership.count({
+      where: { 
+        payoutAccountId: payoutAccountId,
+        status: 'active'
+      },
+      transaction
+    });
+
+    if (linkedMemberships > 0) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: `Cannot delete account. It's linked to ${linkedMemberships} active group membership(s).` 
+      });
+    }
+
+    await payoutAccount.destroy({ transaction });
+
+    // If deleted account was default, make another one default
+    if (payoutAccount.isDefault) {
+      const otherAccount = await PayoutAccount.findOne({
+        where: { userId },
+        transaction
+      });
+
+      if (otherAccount) {
+        await otherAccount.update({ isDefault: true }, { transaction });
+      }
+    }
+
+    await transaction.commit();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payout account deleted successfully.'
+    });
+
+  } catch (error) {
+    if (transaction && !transaction.finished) await transaction.rollback();
+    console.error('Delete payout account error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+
 
 
  //Attach user’s payout to a group
@@ -189,7 +386,6 @@ exports.getUserGroups = async (req, res) => {
     const userId = req.user.id;
     const { Op } = require('sequelize');
 
-    // First, get all group IDs where user is a member
     const userMemberships = await Membership.findAll({
       where: { userId, status: 'active' },
       attributes: ['groupId']
@@ -198,14 +394,9 @@ exports.getUserGroups = async (req, res) => {
     const groupIds = userMemberships.map(m => m.groupId);
 
     if (groupIds.length === 0) {
-      return res.status(200).json({ 
-        success: true,
-        count: 0,
-        groups: [] 
-      });
+      return res.status(200).json({ success: true, count: 0, data: [] });
     }
 
-    // Then get all groups with full details
     const groups = await Group.findAll({
       where: { id: { [Op.in]: groupIds } },
       include: [
@@ -234,11 +425,10 @@ exports.getUserGroups = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // Format response
     const formattedGroups = groups.map(group => {
-      const activeCycle = group.cycles && group.cycles.length > 0 ? group.cycles[0] : null;
+      const activeCycle = group.cycles?.[0] || null;
       const currentUserMembership = group.members.find(m => m.id === userId);
-      
+
       return {
         id: group.id,
         groupName: group.groupName,
@@ -254,23 +444,20 @@ exports.getUserGroups = async (req, res) => {
         inviteCode: group.inviteCode,
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
-        
-        // Admin info
-        admin: {
+
+        admin: group.admin ? {
           id: group.admin.id,
           name: group.admin.name,
           email: group.admin.email,
           profilePicture: group.admin.profilePicture
-        },
+        } : null,
         isAdmin: group.adminId === userId,
-        
-        // Current user's role in this group
-        myRole: currentUserMembership ? currentUserMembership.Membership.role : null,
-        myPayoutOrder: currentUserMembership ? currentUserMembership.Membership.payoutOrder : null,
-        hasReceivedPayout: currentUserMembership ? currentUserMembership.Membership.hasReceivedPayout : false,
-        joinedAt: currentUserMembership ? currentUserMembership.Membership.createdAt : null,
-        
-        // All members (sorted by payout order)
+
+        myRole: currentUserMembership?.Membership?.role || null,
+        myPayoutOrder: currentUserMembership?.Membership?.payoutOrder || null,
+        hasReceivedPayout: currentUserMembership?.Membership?.hasReceivedPayout || false,
+        joinedAt: currentUserMembership?.Membership?.createdAt || null,
+
         members: group.members
           .map(member => ({
             id: member.id,
@@ -285,7 +472,6 @@ exports.getUserGroups = async (req, res) => {
             isCurrentRecipient: activeCycle ? member.id === activeCycle.activeMemberId : false
           }))
           .sort((a, b) => {
-            // Sort by payout order (nulls last), then by joined date
             if (a.payoutOrder === null && b.payoutOrder === null) {
               return new Date(a.joinedAt) - new Date(b.joinedAt);
             }
@@ -293,8 +479,7 @@ exports.getUserGroups = async (req, res) => {
             if (b.payoutOrder === null) return -1;
             return a.payoutOrder - b.payoutOrder;
           }),
-        
-        // Active cycle details
+
         activeCycle: activeCycle ? {
           id: activeCycle.id,
           currentRound: activeCycle.currentRound,
@@ -306,11 +491,10 @@ exports.getUserGroups = async (req, res) => {
             name: group.members.find(m => m.id === activeCycle.activeMemberId)?.name || 'Unknown',
           },
           progress: activeCycle.totalRounds > 0 
-            ? ((activeCycle.currentRound / activeCycle.totalRounds) * 100).toFixed(2) 
-            : 0
+            ? (((activeCycle.currentRound - 1) / activeCycle.totalRounds) * 100).toFixed(2)
+            : "0.00"
         } : null,
-        
-        // Quick stats
+
         stats: {
           isComplete: group.members.length === group.totalMembers,
           spotsRemaining: Math.max(0, group.totalMembers - group.members.length),
@@ -319,21 +503,14 @@ exports.getUserGroups = async (req, res) => {
       };
     });
 
-    res.status(200).json({ 
-      success: true,
-      count: formattedGroups.length,
-      data: formattedGroups 
-    });
+    res.status(200).json({ success: true, count: formattedGroups.length, data: formattedGroups });
 
   } catch (error) {
     console.error('Get user groups error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Server error', 
-      error: error.message 
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
 
 
 
@@ -369,81 +546,145 @@ exports.generateInviteLink = async (req, res) => {
 
 //  Request to join group via invite link
 exports.joinGroup = async (req, res) => {
+  const transaction = await Group.sequelize.transaction();
+
   try {
     const userId = req.user.id;
-    const { id } = req.params; // get the group id from the params(link)
-    const { invite } = req.params;//get the invite code from the params
+    const { id } = req.params; // group id
+    const { invite } = req.params; // invite code
 
-    const group = await Group.findByPk(id);
-    if (!group) return res.status(404).json({ message: 'Group not found.' });
-
-    const validUser = await User.findByPk(userId);
-    if ( !validUser ) {
-      return res.status(404).json({ message: 'User not found. please proceed to login' });
+    const group = await Group.findByPk(id, { transaction });
+    if (!group) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Group not found.' 
+      });
     }
 
-  
+    const validUser = await User.findByPk(userId, { transaction });
+    if (!validUser) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found. Please proceed to login.' 
+      });
+    }
+
+    // Verify invite code
     if (group.inviteCode !== invite) {
-      return res.status(400).json({ message: 'Invalid or expired invite link.' });
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid or expired invite link.' 
+      });
     }
 
-  
-    const existing = await Membership.findOne({ where: { userId, groupId: id } });
-    if (existing) return res.status(400).json({ message: 'You are already a member of this group.' });
+    // Check if already a member
+    const existing = await Membership.findOne({ 
+      where: { userId, groupId: id },
+      transaction 
+    });
 
- 
-    const payout = await PayoutAccount.findOne({ where: { userId, isDefault: true } });
+    if (existing) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'You are already a member of this group.' 
+      });
+    }
+
+    // Get user's default payout account
+    const payout = await PayoutAccount.findOne({ 
+      where: { userId, isDefault: true },
+      transaction 
+    });
+
     if (!payout) {
+      await transaction.rollback();
       return res.status(400).json({
+        success: false,
         message: 'You must set up a payout account before joining a group.',
         requiresPayout: true
       });
     }
 
-   
-    await Membership.create({
+    //  Create membership and link payout account
+    const membership = await Membership.create({
       userId,
       groupId: id,
       role: 'member',
       status: 'pending',
       payoutAccountId: payout.id 
-    });
+    }, { transaction });
 
-    // Send an email to the group admin to notify them of the join request
- const admin = await User.findByPk(group.adminId);
-const user = await User.findByPk(userId);
-   const dateString = new Date().toISOString().split('T')[0];
+    // Update payout account to link back to membership
+    await payout.update({ 
+      membershipId: membership.id 
+    }, { transaction });
 
-   if (admin && admin.email && user) {
-     await sendMail({
-       email: admin.email,
-       subject: 'Request to Join Your Group',
-       html: joinRequestMail(
-         admin.name,
-         user.name,
-         group.groupName,
-         dateString
-       ),
-     });
-   }
-        const groupInfo = {
-          groupName: group.groupName,
-          admin: await User.findByPk(group.adminId, { attributes: ['id', 'name', 'email'] }),
-          contributionAmount: group.contributionAmount,
-          totalMembers: group.totalMembers,
-          availableSpots: group.totalMembers - (await Membership.count({ where: { groupId: id, status: 'active' } })) ,
+    await transaction.commit();
 
-        }
+    // Send email to admin
+    try {
+      const admin = await User.findByPk(group.adminId);
+      const { sendMail } = require('../utils/sendgrid');
+      const { joinRequestMail } = require('../utils/joinRequestMail');
+      const dateString = new Date().toISOString().split('T')[0];
+
+      if (admin && admin.email) {
+        await sendMail({
+          email: admin.email,
+          subject: 'Request to Join Your Group',
+          html: joinRequestMail(
+            admin.name,
+            validUser.name,
+            group.groupName,
+            dateString
+          ),
+        });
+      }
+    } catch (emailError) {
+      console.error('Email notification error:', emailError);
+    }
+
+    const groupInfo = {
+      groupName: group.groupName,
+      admin: await User.findByPk(group.adminId, { 
+        attributes: ['id', 'name', 'email'] 
+      }),
+      contributionAmount: group.contributionAmount,
+      totalMembers: group.totalMembers,
+      availableSpots: group.totalMembers - (await Membership.count({ 
+        where: { groupId: id, status: 'active' } 
+      }))
+    };
+
     res.status(200).json({
+      success: true,
       message: 'Join request sent successfully. Waiting for admin approval.',
-      group: groupInfo
-
+      data: {
+        membershipId: membership.id,
+        group: groupInfo,
+        linkedPayoutAccount: {
+          id: payout.id,
+          bankName: payout.bankName,
+          accountNumber: payout.accountNumber
+        }
+      }
     });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (transaction && !transaction.finished) await transaction.rollback();
+    console.error('Join group error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
+
 
  
  // Get all pending join requests for a group
@@ -500,48 +741,120 @@ exports.getAllPendingRequest = async (req, res) => {
 
 //  Approve or reject join request
 exports.manageJoinRequest = async (req, res) => {
+  const transaction = await Group.sequelize.transaction();
+
   try {
     const userId = req.user.id; 
     const { groupId, memberId } = req.params;
     const { action } = req.body; 
 
-    const group = await Group.findByPk(groupId);
-    if (!group) return res.status(404).json({ message: 'Group not found.' });
+    const group = await Group.findByPk(groupId, { transaction });
+    if (!group) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Group not found.' 
+      });
+    }
 
     if (group.adminId !== userId) {
-      return res.status(403).json({ message: 'Only admin can manage join requests.' });
+      await transaction.rollback();
+      return res.status(403).json({ 
+        success: false,
+        message: 'Only admin can manage join requests.' 
+      });
     }
 
     const membership = await Membership.findOne({
-      where: { groupId, userId: memberId, status: 'pending' }
+      where: { groupId, userId: memberId, status: 'pending' },
+      include: [{ 
+        model: PayoutAccount, 
+        as: 'payoutAccount' 
+      }],
+      transaction
     });
-    if (!membership) return res.status(404).json({ message: 'Pending request not found.' });
+
+    if (!membership) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'Pending request not found.' 
+      });
+    }
 
     if (action === 'approve') {
+      if (!membership.payoutAccount) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          success: false,
+          message: 'Cannot approve: User has removed their payout account.' 
+        });
+      }
+
       // Check if group is full
       const activeMembersCount = await Membership.count({
-        where: { groupId, status: 'active' }
+        where: { groupId, status: 'active' },
+        transaction
       });
 
       if (activeMembersCount >= group.totalMembers) {
+        await transaction.rollback();
         return res.status(400).json({ 
+          success: false,
           message: 'Cannot approve member. Group is already full.' 
         });
       }
 
-      await membership.update({ status: 'active' });
+      await membership.update({ status: 'active' }, { transaction });
+
+      await transaction.commit();
+
+      return res.status(200).json({ 
+        success: true,
+        message: 'Member approved successfully.',
+        data: {
+          membershipId: membership.id,
+          userId: memberId,
+          status: 'active'
+        }
+      });
+
     } else if (action === 'reject') {
-      await membership.destroy();
+      // Unlink payout account before deleting membership
+      if (membership.payoutAccount) {
+        await PayoutAccount.update(
+          { membershipId: null },
+          { where: { id: membership.payoutAccountId }, transaction }
+        );
+      }
+
+      await membership.destroy({ transaction });
+
+      await transaction.commit();
+
+      return res.status(200).json({ 
+        success: true,
+        message: 'Request rejected successfully.' 
+      });
+
+    } else {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid action. Use "approve" or "reject".' 
+      });
     }
 
-    res.status(200).json({ message: `Request ${action}ed successfully.` });
-
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (transaction && !transaction.finished) await transaction.rollback();
+    console.error('Manage join request error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
-
 
 // get all approved members
 exports.getAllApprovedMembers = async (req, res) => {
@@ -696,35 +1009,7 @@ exports.startCycle = async (req, res) => {
       });
     }
 
-   const membersWithoutPayout = await Membership.findAll({
-  where: { groupId: id, status: 'active' },
-  include: [
-    {
-      model: PayoutAccount,
-      as: 'payoutAccount',
-      required: false
-    },
-    {
-      model: User,
-      as: 'user',
-      attributes: ['id', 'name', 'email']
-    }
-  ],
-  transaction: t
-});
-
-// Filter members that do not have a payout account
-const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
-
-// if (invalid.length > 0) {
-//   await t.rollback();
-//   return res.status(400).json({
-//     message: `${invalid.length} member(s) haven't set up payout accounts.`,
-//     members: invalid.map(m => m.user?.name || 'Unknown User')
-//   });
-// }
-
-    // Get members ordered by payoutOrder (or createdAt if not set)
+    // Get members ordered by payoutOrder
     const members = await Membership.findAll({
       where: { groupId: id, status: 'active' },
       include: [{
@@ -733,7 +1018,7 @@ const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
         attributes: ['id', 'name', 'email']
       }],
       order: [
-        ['payoutOrder', 'ASC NULLS LAST'], 
+        [Sequelize.literal('payoutOrder IS NULL, payoutOrder ASC')], 
         ['createdAt', 'ASC'] 
       ],
       transaction: t
@@ -746,7 +1031,7 @@ const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
       });
     }
 
-    // If payoutOrder not set, assign it now
+    // Assign payout order if not set
     let needsOrderAssignment = members.some(m => m.payoutOrder === null);
     if (needsOrderAssignment) {
       for (let i = 0; i < members.length; i++) {
@@ -754,19 +1039,20 @@ const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
       }
     }
 
-    // First member in order gets paid first
     const firstMember = members[0];
+    const cycleStartDate = new Date();
 
     const cycle = await Cycle.create({
       groupId: id,
       currentRound: 1,
       activeMemberId: firstMember.userId,
       status: 'active',
-      startDate: new Date(),
+      startDate: cycleStartDate,
       totalRounds: group.totalMembers,
+      currentRoundStartDate: cycleStartDate, 
     }, { transaction: t });
 
-    // Reset hasReceivedPayout for all members
+    // Reset hasReceivedPayout
     await Membership.update(
       { hasReceivedPayout: false },
       { where: { groupId: id, status: 'active' }, transaction: t }
@@ -776,14 +1062,18 @@ const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
 
     await t.commit();
 
-    // Send notifications
+    // Send notifications 
     const { sendMail } = require('../utils/sendgrid');
     try {
       for (const member of members) {
         await sendMail({
           email: member.user.email,
           subject: 'New Ajo Cycle Started!',
-          html: cycleStartedMail(member.name, group.groupName, group.contributionAmount),
+          html: cycleStartedMail(
+            member.user.name, 
+            group.groupName, 
+            group.contributionAmount
+          ),
         });
       }
       console.log(`Emails sent to ${members.length} members`);
@@ -803,6 +1093,7 @@ const invalid = membersWithoutPayout.filter(m => !m.payoutAccount);
           activeMemberName: firstMember.user.name,
           status: cycle.status,
           startDate: cycle.startDate,
+          currentRoundStartDate: cycle.currentRoundStartDate,
         },
         payoutSchedule: members.map(m => ({
           position: m.payoutOrder,
@@ -1087,35 +1378,39 @@ exports.randomizePayoutOrder = async (req, res) => {
 
 exports.handlePayoutAndRotate = async (cycleId, groupId) => {
   const { sendMail } = require('../utils/sendgrid');
-  
+  const { Op } = require('sequelize');
+
   try {
-    const cycle = await Cycle.findByPk(cycleId, { 
-      include: [{ association: 'group' }] 
-    });
-    
+    const cycle = await Cycle.findByPk(cycleId, { include: [{ association: 'group' }] });
     const group = await Group.findByPk(groupId);
 
-    if (!cycle || !group) {
-      throw new Error('Cycle or Group not found for payout rotation.');
+    if (!cycle || !group) throw new Error('Cycle or Group not found for payout rotation.');
+
+    // Get all active members
+    const members = await Membership.findAll({
+      where: { groupId: group.id, status: 'active' },
+      include: [{ model: User, as: 'user' }],
+      order: [['payoutOrder', 'ASC']]
+    });
+
+    // ✅ Ensure all members have contributed this round
+    const contributions = await Contribution.findAll({
+      where: { cycleId, roundNumber: cycle.currentRound, status: 'paid' }
+    });
+
+    if (contributions.length < members.length) {
+      console.log(`⏸️ Waiting for all members to contribute: ${contributions.length}/${members.length}`);
+      return { success: false, message: 'Not all members have contributed for this round yet.' };
     }
 
-    // Get contributions for this round only (last 24 hours)
-    const contributions = await Contribution.findAll({ 
-      where: { 
-        cycleId,
-        createdAt: {
-          [require('sequelize').Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000)
-        }
-      } 
-    });
-    
+    // 💰 Calculate totals
     const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
     const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
     const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
     const finalAmount = totalAmount - commissionFee;
 
-    // Create payout record
-    await Payout.create({
+    // 🧾 Create payout record
+    const payout = await Payout.create({
       userId: cycle.activeMemberId,
       groupId: group.id,
       cycleId: cycle.id,
@@ -1126,18 +1421,11 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       payoutDate: new Date(),
     });
 
-    // Mark current member as received
+    // ✅ Mark current member as received
     await Membership.update(
       { hasReceivedPayout: true },
       { where: { userId: cycle.activeMemberId, groupId: group.id } }
     );
-
-    // Get members ordered by payoutOrder
-    const members = await Membership.findAll({ 
-      where: { groupId: group.id, status: 'active' }, 
-      include: [{ model: User, as: 'user' }],
-      order: [['payoutOrder', 'ASC']]
-    });
 
     const currentIndex = members.findIndex(m => m.userId === cycle.activeMemberId);
     const nextMember = members[currentIndex + 1];
@@ -1150,25 +1438,23 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
         currentRoundStartDate: new Date()
       });
 
-      //  Mark contributions as completed (don't delete for history)
+      // Mark contributions as completed for history
       await Contribution.update(
         { status: 'completed' },
-        { where: { cycleId: cycle.id, status: 'paid' } }
+        { where: { cycleId: cycle.id, roundNumber: cycle.currentRound } }
       );
-      
-      // Send round completion emails
+
+      // 📩 Notify all members
       try {
         for (const member of members) {
           await sendMail({
             email: member.user.email,
-            subject: `Round ${cycle.currentRound} Completed - ${group.groupName}`,
-            html: cycleCompletedMail(
-           member.User.name,
-           group.groupName,
-           totalAmount.toFixed(2),
-           cycle.startDate.toISOString().split('T')[0],
-           new Date().toISOString().split('T')[0],
-         )
+            subject: `Round ${cycle.currentRound - 1} Completed - ${group.groupName}`,
+            html: `
+              <p>Hi ${member.user.name},</p>
+              <p>Round ${cycle.currentRound - 1} of <b>${group.groupName}</b> has been completed.</p>
+              <p>The payout has been made to <b>${members[currentIndex].user.name}</b>.</p>
+            `
           });
         }
       } catch (emailError) {
@@ -1176,13 +1462,10 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       }
 
     } else {
-      // Cycle complete
-      await cycle.update({ 
-        status: 'completed',
-        endDate: new Date()
-      });
+      // ✅ Cycle complete
+      await cycle.update({ status: 'completed', endDate: new Date() });
       await group.update({ status: 'completed' });
-      
+
       try {
         for (const member of members) {
           await sendMail({
@@ -1190,10 +1473,9 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
             subject: `Cycle Completed! - ${group.groupName}`,
             html: `
               <p>Hi ${member.user.name},</p>
-              <p> Congratulations! The cycle for <b>${group.groupName}</b> has completed successfully!</p>
+              <p>🎉 The cycle for <b>${group.groupName}</b> has successfully completed!</p>
               <p>All ${members.length} members have received their payouts.</p>
-              <p> Total payout amount was <b>$${finalAmount * members.length}</b>, after a commission of <b>$${commissionFee.toFixed(2)}</b>.</p>
-              <p>Thank you for participating!</p>
+              <p>Total payout: <b>$${(finalAmount * members.length).toFixed(2)}</b></p>
             `
           });
         }
@@ -1201,12 +1483,15 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
         console.error('Completion email error:', emailError.message);
       }
     }
-    return {success: true, Payout}
+
+    return { success: true, payout };
+
   } catch (error) {
     console.error('Payout and rotate error:', error);
     throw error;
   }
 };
+
 
 // Add delete group function
 exports.deleteGroup = async (req, res) => {

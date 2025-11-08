@@ -5,6 +5,9 @@ const {groupRegisterValidator} = require('../middleware/validator')
  const { 
   createGroup,
   addPayoutAccount,
+  getUserPayoutAccounts,      
+  updatePayoutAccount,        
+  deletePayoutAccount,         
   attachPayoutToGroup,
   getUserGroups,
   generateInviteLink,
@@ -39,6 +42,10 @@ router.get('/:groupId/approved-members', authenticate, getAllApprovedMembers)
 
 //payout management
 router.post('/payout-account', authenticate, addPayoutAccount);
+router.get('/payout-accounts', authenticate, getUserPayoutAccounts);
+router.put('/payout-account/:payoutAccountId', authenticate, updatePayoutAccount);
+router.delete('/payout-account/:payoutAccountId', authenticate, deletePayoutAccount);
+
 // router.post('/:groupId/attach-payout', authenticate, attachPayoutToGroup);
 router.get('/:id/payout-order', authenticate, getPayoutOrder);
 router.put('/:id/payout-order', authenticate, setPayoutOrder);
@@ -321,7 +328,8 @@ module.exports = router;
  * @swagger
  * /api/groups/payout-account:
  *   post:
- *     summary: Add a new payout account for the user
+ *     summary: Add a new payout account
+ *     description: Allows a user to add a bank account for receiving payouts. Users can add accounts before joining any group.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -337,18 +345,127 @@ module.exports = router;
  *             properties:
  *               bankName:
  *                 type: string
+ *                 example: "Access Bank"
+ *               accountNumber:
+ *                 type: string
+ *                 example: "0123456789"
+ *               isDefault:
+ *                 type: boolean
+ *                 description: Set as default account (first account is always default)
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Payout account added successfully
+ *       400:
+ *         description: Missing required fields or duplicate account
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/groups/payout-accounts:
+ *   get:
+ *     summary: Get all payout accounts for the authenticated user
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of user's payout accounts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       bankName:
+ *                         type: string
+ *                       accountNumber:
+ *                         type: string
+ *                       isDefault:
+ *                         type: boolean
+ *                       createdAt:
+ *                         type: string
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/groups/payout-account/{payoutAccountId}:
+ *   put:
+ *     summary: Update a payout account
+ *     description: Update bank details or set as default account
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: payoutAccountId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               bankName:
+ *                 type: string
  *               accountNumber:
  *                 type: string
  *               isDefault:
  *                 type: boolean
  *     responses:
  *       200:
- *         description: Payout account added successfully
- *       400:
- *         description: Missing bank details
+ *         description: Account updated successfully
+ *       404:
+ *         description: Payout account not found
  *       500:
  *         description: Server error
  */
+
+/**
+ * @swagger
+ * /api/groups/payout-account/{payoutAccountId}:
+ *   delete:
+ *     summary: Delete a payout account
+ *     description: Delete an account if it's not linked to any active memberships
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: payoutAccountId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *       400:
+ *         description: Cannot delete - account is linked to active memberships
+ *       404:
+ *         description: Payout account not found
+ *       500:
+ *         description: Server error
+ */
+
+
 
 /**
  * @swagger

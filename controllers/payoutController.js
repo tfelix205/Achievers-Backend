@@ -1,4 +1,4 @@
-const { Group, Payout, Contribution, Membership, Cycle, User, PayoutAccount } = require('../models');
+const { Group, Payout, Contribution, Membership, Cycle, User, PayoutAccount, sequelize } = require('../models'); 
 const korapayService = require('../services/korapayService');
 const { v4: uuidv4 } = require('uuid');
 
@@ -228,7 +228,7 @@ exports.getUserPayouts = async (req, res) => {
   }
 };
 
-// Process payout (admin approves and triggers actual transfer)
+//  process  Payout function
 exports.processPayout = async (req, res) => {
   try {
     const { payoutId } = req.params;
@@ -246,8 +246,9 @@ exports.processPayout = async (req, res) => {
           include: [{
             model: Membership,
             as: 'memberships',
-            where: { groupId: sequelize.col('Payout.groupId') },
-            include: [{ model: PayoutAccount, as: 'payoutAccount' }]
+            where: { groupId: sequelize.col('group.id') }, 
+            include: [{ model: PayoutAccount, as: 'payoutAccount' }],
+            required: false
           }]
         }
       ]
@@ -275,7 +276,10 @@ exports.processPayout = async (req, res) => {
       });
     }
 
-    const payoutAccount = payout.user.memberships[0]?.payoutAccount;
+    //Find payout account through membership
+    const membership = payout.user.memberships?.find(m => m.groupId === payout.groupId);
+    const payoutAccount = membership?.payoutAccount;
+    
     if (!payoutAccount) {
       return res.status(400).json({
         success: false,
@@ -291,10 +295,10 @@ exports.processPayout = async (req, res) => {
     // Initiate Korapay transfer (if configured)
     if (process.env.KORAPAY_SECRET_KEY) {
       const transferData = {
-        reference: `PAYOUT-${uuidv4()}`,
+        reference: `Splitout-${uuidv4()}`,
         amount: finalAmount,
         narration: `Payout for ${payout.group.groupName}`,
-        bankCode: payoutAccount.bankName, // You'll need bank codes mapping
+        bankCode: payoutAccount.bankName,
         accountNumber: payoutAccount.accountNumber,
         customerName: payout.user.name,
         customerEmail: payout.user.email

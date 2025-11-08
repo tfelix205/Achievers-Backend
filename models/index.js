@@ -58,7 +58,7 @@ const sequelize = isProduction
         },
       }
     )
-  : new Sequelize('achievers', 'root', 'Backend8989', {
+  : new Sequelize('splitconsole', 'root', 'Backend8989', {
       host: 'localhost',
       dialect: 'mysql',
       logging: false,
