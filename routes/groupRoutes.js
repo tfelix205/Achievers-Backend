@@ -41,10 +41,10 @@ router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest)
 router.get('/:groupId/approved-members', authenticate, getAllApprovedMembers)
 
 //payout management
-router.post('/payout-account', authenticate, addPayoutAccount);
-router.get('/payout-accounts', authenticate, getUserPayoutAccounts);
-router.put('/payout-account/:payoutAccountId', authenticate, updatePayoutAccount);
-router.delete('/payout-account/:payoutAccountId', authenticate, deletePayoutAccount);
+router.post('/payout_account', authenticate, addPayoutAccount);
+router.get('/user/payout_accounts', authenticate, getUserPayoutAccounts);
+router.put('/payout_account/:payoutAccountId', authenticate, updatePayoutAccount);
+router.delete('/payout_account/:payoutAccountId', authenticate, deletePayoutAccount);
 
 // router.post('/:groupId/attach-payout', authenticate, attachPayoutToGroup);
 router.get('/:id/payout-order', authenticate, getPayoutOrder);
@@ -326,7 +326,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/payout-account:
+ * /api/groups/payout_account:
  *   post:
  *     summary: Add a new payout account
  *     description: Allows a user to add a bank account for receiving payouts. Users can add accounts before joining any group.
@@ -366,7 +366,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/payout-accounts:
+ * /api/groups/user/payout_accounts:
  *   get:
  *     summary: Get all payout accounts for the authenticated user
  *     tags: [Groups]
@@ -405,7 +405,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/payout-account/{payoutAccountId}:
+ * /api/groups/payout_account/{payoutAccountId}:
  *   put:
  *     summary: Update a payout account
  *     description: Update bank details or set as default account
@@ -441,7 +441,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/payout-account/{payoutAccountId}:
+ * /api/groups/payout_account/{payoutAccountId}:
  *   delete:
  *     summary: Delete a payout account
  *     description: Delete an account if it's not linked to any active memberships
