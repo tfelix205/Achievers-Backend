@@ -1009,7 +1009,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/randomize_payout-order:
+ * /api/groups/{id}/randomize_payout_order:
  *   post:
  *     summary: Randomize payout order for a group (Admin only)
  *     description: >

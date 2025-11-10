@@ -971,19 +971,20 @@ exports.startCycle = async (req, res) => {
 
     // Get members ordered by payoutOrder
     const members = await Membership.findAll({
-      where: { groupId: id, status: 'active' },
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'name', 'email']
-      }],
-      order: [
-        [Sequelize.literal('payoutOrder IS NULL, payoutOrder ASC')], 
-        ['createdAt', 'ASC'] 
-      ],
-      transaction: t
-    });
-
+  where: { groupId: id, status: 'active' },
+  include: [{
+    model: User,
+    as: 'user',
+    attributes: ['id', 'name', 'email']
+  }],
+  order: [
+    // Option 2: Use raw SQL with proper escaping
+    [sequelize.literal('CASE WHEN "Membership"."payoutOrder" IS NULL THEN 1 ELSE 0 END'), 'ASC'],
+    [sequelize.col('payoutOrder'), 'ASC'],
+    ['createdAt', 'ASC']
+  ],
+  transaction: t
+});
     if (!members || members.length === 0) {
       await t.rollback();
       return res.status(400).json({ 
