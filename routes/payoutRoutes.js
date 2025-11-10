@@ -7,7 +7,7 @@ const { createPayout, getGroupPayouts, getUserPayouts, processPayout } = require
 router.post('/create', authenticate, createPayout);
 
 // get all payouts for a group
-router.get('/goup/:groupId', authenticate, getGroupPayouts);
+router.get('/group/:groupId', authenticate, getGroupPayouts);
 
 //get user payouts history
 router.get('/my-payouts', authenticate, getUserPayouts);

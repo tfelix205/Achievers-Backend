@@ -35,10 +35,10 @@ router.get('/:id/summary', authenticate, getGroupSummary);
 router.delete('/:id', authenticate, deleteGroup);
 
 // invite & membership routes
-router.get('/generate-invite/:id', authenticate, generateInviteLink);
+router.get('/generate_invite/:id', authenticate, generateInviteLink);
 router.post('/join/:id/:invite', authenticate, joinGroup);
-router.get('/:groupId/pending-requests', authenticate, getAllPendingRequest);
-router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
+router.get('/:groupId/pending_requests', authenticate, getAllPendingRequest);
+router.post('/:groupId/join_request/:memberId', authenticate, manageJoinRequest);
 router.get('/:groupId/approved-members', authenticate, getAllApprovedMembers)
 
 //payout management
@@ -48,14 +48,14 @@ router.put('/payout_account/:payoutAccountId', authenticate, updatePayoutAccount
 router.delete('/payout_account/:payoutAccountId', authenticate, deletePayoutAccount);
 
 // router.post('/:groupId/attach-payout', authenticate, attachPayoutToGroup);
-router.get('/:id/payout-order', authenticate, getPayoutOrder);
-router.put('/:id/payout-order', authenticate, setPayoutOrder);
-router.post('/:id/randomize-payout-order', authenticate, randomizePayoutOrder);
-router.get('/:groupId/payout-info', authenticate, getCurrentPayoutInfo);
+router.get('/:id/payout_order', authenticate, getPayoutOrder);
+router.put('/:id/payout_order', authenticate, setPayoutOrder);
+router.post('/:id/randomize_payout_order', authenticate, randomizePayoutOrder);
+router.get('/:groupId/payout_info', authenticate, getCurrentPayoutInfo);
 
 // cycle management
-router.post('/:id/start-cycle', authenticate, startCycle);
-router.post('/:id/end-cycle', authenticate, endCycle);
+router.post('/:id/start_cycle', authenticate, startCycle);
+router.post('/:id/end_cycle', authenticate, endCycle);
 
 //options
 // router.post('/:id/contribute', authenticate, makeContribution);
@@ -224,7 +224,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/generate-invite/{id}:
+ * /api/groups/generate_invite/{id}:
  *   get:
  *     summary: Generate an invite link for the group (Admin only)
  *     description: Only the group admin can generate an invite link that other users can use to join the group.
@@ -471,7 +471,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{groupId}/pending-requests:
+ * /api/groups/{groupId}/pending_requests:
  *   get:
  *     summary: Get all pending join requests for a group
  *     description: Retrieve all pending join requests for a specific group. Only the group admin can access this endpoint.
@@ -586,7 +586,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{groupId}/join-request/{memberId}:
+ * /api/groups/{groupId}/join_request/{memberId}:
  *   post:
  *     summary: Approve or reject a group join request (Admin only)
  *     tags: [Groups]
@@ -627,7 +627,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{groupId}/approved-members:
+ * /api/groups/{groupId}/approved_members:
  *   get:
  *     summary: Get all approved (active) members in a group
  *     description: Returns a list of all approved members (status = active) for a specific group. Only the group admin can access this endpoint.
@@ -764,7 +764,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{groupId}/payout-info:
+ * /api/groups/{groupId}/payout_info:
  *   get:
  *     summary: Get current payout information for a group
  *     description: >
@@ -848,7 +848,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/payout-order:
+ * /api/groups/{id}/payout_order:
  *   get:
  *     summary: Get payout order for a group
  *     description: >
@@ -936,7 +936,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/payout-order:
+ * /api/groups/{id}/payout_order:
  *   put:
  *     summary: Set or update payout order for a group (Admin only)
  *     description: >
@@ -1009,7 +1009,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/randomize-payout-order:
+ * /api/groups/{id}/randomize_payout-order:
  *   post:
  *     summary: Randomize payout order for a group (Admin only)
  *     description: >
@@ -1066,7 +1066,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/start-cycle:
+ * /api/groups/{id}/start_cycle:
  *   post:
  *     summary: Start a new contribution cycle (Admin only)
  *     tags: [Groups]
@@ -1091,7 +1091,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/end-cycle:
+ * /api/groups/{id}/end_cycle:
  *   post:
  *     summary: End an active cycle for a group (Admin only)
  *     description: >
