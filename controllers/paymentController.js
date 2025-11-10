@@ -30,7 +30,7 @@ exports.initializeContribution = async (req, res) => {
       amount: amount,
       customerName: user.name,
       customerEmail: user.email,
-      redirectUrl: `${process.env.FRONTEND_URL}#/contribution/verify/${reference}`,
+      redirectUrl: `${process.env.FRONTEND_URL}#/contribution/verify/`,
       reference: reference,
       metadata: {
         userId: userId,
