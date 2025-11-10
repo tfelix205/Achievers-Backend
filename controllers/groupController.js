@@ -556,76 +556,55 @@ exports.joinGroup = async (req, res) => {
     const group = await Group.findByPk(id, { transaction });
     if (!group) {
       await transaction.rollback();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Group not found.' 
+        message: 'Group not found.'
       });
     }
 
     const validUser = await User.findByPk(userId, { transaction });
     if (!validUser) {
       await transaction.rollback();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'User not found. Please proceed to login.' 
+        message: 'User not found. Please proceed to login.'
       });
     }
 
     // Verify invite code
     if (group.inviteCode !== invite) {
       await transaction.rollback();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Invalid or expired invite link.' 
+        message: 'Invalid or expired invite link.'
       });
     }
 
     // Check if already a member
-    const existing = await Membership.findOne({ 
+    const existing = await Membership.findOne({
       where: { userId, groupId: id },
-      transaction 
+      transaction
     });
 
     if (existing) {
       await transaction.rollback();
-      return res.status(400).json({ 
-        success: false,
-        message: 'You are already a member of this group.' 
-      });
-    }
-
-    // Get user's default payout account
-    const payout = await PayoutAccount.findOne({ 
-      where: { userId, isDefault: true },
-      transaction 
-    });
-
-    if (!payout) {
-      await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'You must set up a payout account before joining a group.',
-        requiresPayout: true
+        message: 'You have already requested to join or are a member of this group.'
       });
     }
 
-    //  Create membership and link payout account
+    // Create pending membership (no payout required yet)
     const membership = await Membership.create({
       userId,
       groupId: id,
       role: 'member',
-      status: 'pending',
-      payoutAccountId: payout.id 
-    }, { transaction });
-
-    // Update payout account to link back to membership
-    await payout.update({ 
-      membershipId: membership.id 
+      status: 'pending'
     }, { transaction });
 
     await transaction.commit();
 
-    // Send email to admin
+    // Send email to admin (notify of join request)
     try {
       const admin = await User.findByPk(group.adminId);
       const { sendMail } = require('../utils/sendgrid');
@@ -648,39 +627,19 @@ exports.joinGroup = async (req, res) => {
       console.error('Email notification error:', emailError);
     }
 
-    const groupInfo = {
-      groupName: group.groupName,
-      admin: await User.findByPk(group.adminId, { 
-        attributes: ['id', 'name', 'email'] 
-      }),
-      contributionAmount: group.contributionAmount,
-      totalMembers: group.totalMembers,
-      availableSpots: group.totalMembers - (await Membership.count({ 
-        where: { groupId: id, status: 'active' } 
-      }))
-    };
-
     res.status(200).json({
       success: true,
       message: 'Join request sent successfully. Waiting for admin approval.',
-      data: {
-        membershipId: membership.id,
-        group: groupInfo,
-        linkedPayoutAccount: {
-          id: payout.id,
-          bankName: payout.bankName,
-          accountNumber: payout.accountNumber
-        }
-      }
+      data: { membershipId: membership.id }
     });
 
   } catch (error) {
     if (transaction && !transaction.finished) await transaction.rollback();
     console.error('Join group error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   }
 };
@@ -751,43 +710,45 @@ exports.manageJoinRequest = async (req, res) => {
     const group = await Group.findByPk(groupId, { transaction });
     if (!group) {
       await transaction.rollback();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Group not found.' 
+        message: 'Group not found.'
       });
     }
 
     if (group.adminId !== userId) {
       await transaction.rollback();
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
-        message: 'Only admin can manage join requests.' 
+        message: 'Only the admin can manage join requests.'
       });
     }
 
     const membership = await Membership.findOne({
       where: { groupId, userId: memberId, status: 'pending' },
-      include: [{ 
-        model: PayoutAccount, 
-        as: 'payoutAccount' 
-      }],
       transaction
     });
 
     if (!membership) {
       await transaction.rollback();
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Pending request not found.' 
+        message: 'Pending request not found.'
       });
     }
 
     if (action === 'approve') {
-      if (!membership.payoutAccount) {
+      // Check if the user now has a payout account
+      const payout = await PayoutAccount.findOne({
+        where: { userId: memberId, isDefault: true },
+        transaction
+      });
+
+      if (!payout) {
         await transaction.rollback();
-        return res.status(400).json({ 
+        return res.status(403).json({
           success: false,
-          message: 'Cannot approve: User has removed their payout account.' 
+          message: 'Cannot approve request. User must have a payout account set up.'
         });
       }
 
@@ -799,62 +760,61 @@ exports.manageJoinRequest = async (req, res) => {
 
       if (activeMembersCount >= group.totalMembers) {
         await transaction.rollback();
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: 'Cannot approve member. Group is already full.' 
+          message: 'Cannot approve member. Group is already full.'
         });
       }
 
-      await membership.update({ status: 'active' }, { transaction });
+      // Link payout account and activate membership
+      await membership.update(
+        { status: 'active', payoutAccountId: payout.id },
+        { transaction }
+      );
+
+      await payout.update({ membershipId: membership.id }, { transaction });
 
       await transaction.commit();
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         success: true,
         message: 'Member approved successfully.',
         data: {
           membershipId: membership.id,
           userId: memberId,
+          payoutAccountId: payout.id,
           status: 'active'
         }
       });
 
     } else if (action === 'reject') {
-      // Unlink payout account before deleting membership
-      if (membership.payoutAccount) {
-        await PayoutAccount.update(
-          { membershipId: null },
-          { where: { id: membership.payoutAccountId }, transaction }
-        );
-      }
-
       await membership.destroy({ transaction });
-
       await transaction.commit();
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         success: true,
-        message: 'Request rejected successfully.' 
+        message: 'Join request rejected successfully.'
       });
 
     } else {
       await transaction.rollback();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Invalid action. Use "approve" or "reject".' 
+        message: 'Invalid action. Use "approve" or "reject".'
       });
     }
 
   } catch (error) {
     if (transaction && !transaction.finished) await transaction.rollback();
     console.error('Manage join request error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   }
 };
+
 
 // get all approved members
 exports.getAllApprovedMembers = async (req, res) => {
