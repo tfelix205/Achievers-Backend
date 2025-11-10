@@ -74,7 +74,7 @@ exports.verifyContribution = async (req, res) => {
   const t = await sequelize.transaction();
   
   try {
-    const { reference } = req.query;
+    const { reference } = req.params;
     const userId = req.user.id;
 
     if (!reference) {
