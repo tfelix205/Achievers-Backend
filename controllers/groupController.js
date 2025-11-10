@@ -1393,7 +1393,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       order: [['payoutOrder', 'ASC']]
     });
 
-    // ✅ Ensure all members have contributed this round
+    // Ensure all members have contributed this round
     const contributions = await Contribution.findAll({
       where: { cycleId, roundNumber: cycle.currentRound, status: 'paid' }
     });
@@ -1403,7 +1403,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       return { success: false, message: 'Not all members have contributed for this round yet.' };
     }
 
-    // 💰 Calculate totals
+    // Calculate totals
     const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
     const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
     const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
@@ -1421,7 +1421,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       payoutDate: new Date(),
     });
 
-    // ✅ Mark current member as received
+    // Mark current member as received
     await Membership.update(
       { hasReceivedPayout: true },
       { where: { userId: cycle.activeMemberId, groupId: group.id } }

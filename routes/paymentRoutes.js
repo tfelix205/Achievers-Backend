@@ -7,7 +7,7 @@ const paymentController = require('../controllers/paymentController');
 router.post('/initialize-contribution', authenticate, paymentController.initializeContribution);
 
 // Verify Korapay payment
-router.get('/verify-contribution', authenticate, paymentController.verifyContribution);
+router.get('/verify-contribution/:reference', authenticate, paymentController.verifyContribution);
 
 module.exports = router;
 
@@ -77,7 +77,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/payments/verify-contribution:
+ * /api/payments/verify-contribution/{reference}:
  *   get:
  *     summary: Verify a contribution payment
  *     description: Verifies the status of a Korapay payment reference and records the contribution if successful.
@@ -85,7 +85,7 @@ module.exports = router;
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: query
+ *       - in: params
  *         name: reference
  *         required: true
  *         schema:
