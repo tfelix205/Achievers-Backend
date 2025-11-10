@@ -23,7 +23,8 @@ const {groupRegisterValidator} = require('../middleware/validator')
   randomizePayoutOrder,
   deleteGroup,
   getAllPendingRequest,
-  getAllApprovedMembers
+  getAllApprovedMembers,
+  getCurrentPayoutInfo
 } = require('../controllers/groupController');
 
 //group management routes
@@ -50,6 +51,7 @@ router.delete('/payout_account/:payoutAccountId', authenticate, deletePayoutAcco
 router.get('/:id/payout-order', authenticate, getPayoutOrder);
 router.put('/:id/payout-order', authenticate, setPayoutOrder);
 router.post('/:id/randomize-payout-order', authenticate, randomizePayoutOrder);
+router.get('/:groupId/payout-info', authenticate, getCurrentPayoutInfo);
 
 // cycle management
 router.post('/:id/start-cycle', authenticate, startCycle);
@@ -758,6 +760,91 @@ module.exports = router;
  *       404:
  *         description: Group not found
  */
+
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/payout-info:
+ *   get:
+ *     summary: Get current payout information for a group
+ *     description: >
+ *       Returns detailed information about the active payout cycle of a group, including 
+ *       the current recipient, next recipient, total contributions, commission, penalties, 
+ *       and whether the payout can be triggered.  
+ *       Only the group admin or an active member can access this endpoint.
+ *     tags:
+ *       - Groups
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the group.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved payout information.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 hasActiveCycle: true
+ *                 cycleId: "c12345"
+ *                 currentRound: 2
+ *                 totalRounds: 5
+ *                 currentRecipient:
+ *                   userId: "u789"
+ *                   name: "Jane Doe"
+ *                   email: "jane@example.com"
+ *                   profilePicture: "https://cdn.app.com/jane.png"
+ *                 nextRecipient:
+ *                   userId: "u456"
+ *                   name: "John Smith"
+ *                   position: 3
+ *                 pot:
+ *                   totalCollected: "5000.00"
+ *                   commissionFee: "100.00"
+ *                   penaltyFee: "25.00"
+ *                   finalPayout: "4900.00"
+ *                 contributions:
+ *                   received: 5
+ *                   total: 5
+ *                   remaining: 0
+ *                   percentage: "100.00%"
+ *                 canTriggerPayout: true
+ *                 existingPayoutId: null
+ *                 message: "Ready for payout"
+ *       403:
+ *         description: Access denied. User is not an active member or admin.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Access denied"
+ *       404:
+ *         description: Group not found.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Group not found"
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Server error"
+ *               error: "Error message here"
+ */
+
+
+
+
+
 
 /**
  * @swagger

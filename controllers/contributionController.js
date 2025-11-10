@@ -76,7 +76,7 @@ exports.makeContribution = async (req, res) => {
       }
     }
 
-    // ✅ Fixed: Check if already contributed this ROUND
+    // Fixed: Check if already contributed this ROUND
     const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
     
     const existing = await Contribution.findOne({ 
@@ -84,7 +84,7 @@ exports.makeContribution = async (req, res) => {
         userId, 
         cycleId: cycle.id,
         status: { [Op.in]: ['paid', 'completed'] },
-        createdAt: { [Op.gte]: currentRoundStart } // ✅ Check from round start
+        createdAt: { [Op.gte]: currentRoundStart } // Check from round start
       },
       transaction: t 
     });
@@ -164,12 +164,12 @@ exports.makeContribution = async (req, res) => {
       console.error('Email notification error:', emailError);
     }
 
-    // ✅ Fixed: Check if all members contributed THIS ROUND
+    // Fixed: Check if all members contributed THIS ROUND
     const totalContributions = await Contribution.count({ 
       where: { 
         cycleId: cycle.id,
         status: { [Op.in]: ['paid', 'completed'] },
-        createdAt: { [Op.gte]: currentRoundStart } // ✅ Count from round start
+        createdAt: { [Op.gte]: currentRoundStart } // Count from round start
       } 
     });
     

@@ -29,8 +29,13 @@ module.exports = router;
  * @swagger
  * /api/payouts/create:
  *   post:
- *     summary: Trigger a manual payout for a group member (Admin Only)
- *     tags: [Payouts]
+ *     summary: Create a new payout for the current active cycle
+ *     description: >
+ *       Allows the group admin to trigger a payout for the current active member once all contributions are complete.  
+ *       This endpoint automatically determines the payout recipient based on the active cycle and validates that all members have contributed.  
+ *       Only the **group admin** can perform this action.
+ *     tags:
+ *       - Payouts
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -42,45 +47,81 @@ module.exports = router;
  *             required:
  *               - groupId
  *               - cycleId
- *               - userId
  *             properties:
  *               groupId:
  *                 type: string
- *                 example: "123e4567-e89b-12d3-a456-426614163890"
+ *                 description: The unique ID of the group.
+ *                 example: "grp_12345"
  *               cycleId:
  *                 type: string
- *                 example: "123e4567-e89b-12d3-a456-426614174000"
- *               userId:
- *                 type: string
- *                 example: "123e4567-e89b-12d3-a456-426614175643"
+ *                 description: The active cycle ID.
+ *                 example: "cyc_56789"
  *     responses:
  *       201:
- *         description: Payout created successfully
+ *         description: Payout created successfully.
  *         content:
  *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: object
- *                   properties:
- *                     payout:
- *                       $ref: '#/components/schemas/Payout'
- *                     payoutAccount:
- *                       $ref: '#/components/schemas/PayoutAccount'
+ *             example:
+ *               success: true
+ *               message: "Payout created successfully. Please process it to complete transfer."
+ *               data:
+ *                 payoutId: "pyt_abc123"
+ *                 recipient:
+ *                   name: "Jane Doe"
+ *                   userId: "usr_987"
+ *                 amount: "5000.00"
+ *                 finalAmount: "4800.00"
+ *                 status: "pending"
+ *                 payoutAccount:
+ *                   bankName: "First National Bank"
+ *                   accountNumber: "****5678"
  *       400:
- *         description: Invalid request or payout already made
+ *         description: Bad request — missing data or invalid conditions (e.g., incomplete contributions, existing payout, or missing payout account).
+ *         content:
+ *           application/json:
+ *             examples:
+ *               missingPayoutAccount:
+ *                 summary: Missing payout account
+ *                 value:
+ *                   success: false
+ *                   message: "Recipient has not set up a payout account"
+ *               incompleteContributions:
+ *                 summary: Not all members contributed
+ *                 value:
+ *                   success: false
+ *                   message: "Cannot trigger payout. Only 4/5 members have contributed"
  *       403:
- *         description: Only admin can trigger payouts
+ *         description: Forbidden — user is not the group admin.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Only admin can trigger payouts"
  *       404:
- *         description: Group, membership, or contribution not found
+ *         description: Group or cycle not found.
+ *         content:
+ *           application/json:
+ *             examples:
+ *               groupNotFound:
+ *                 summary: Group not found
+ *                 value:
+ *                   success: false
+ *                   message: "Group not found"
+ *               cycleNotFound:
+ *                 summary: Cycle not found
+ *                 value:
+ *                   success: false
+ *                   message: "No active cycle found"
  *       500:
- *         description: Internal server error
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Server error"
+ *               error: "Error message here"
  */
+
 
 /**
  * @swagger

@@ -1336,6 +1336,152 @@ exports.randomizePayoutOrder = async (req, res) => {
 
 
 
+
+exports.getCurrentPayoutInfo = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+
+    const group = await Group.findByPk(groupId);
+    if (!group) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Group not found' 
+      });
+    }
+
+    // Verify admin or member
+    const membership = await Membership.findOne({
+      where: { userId, groupId, status: 'active' }
+    });
+
+    if (!membership && group.adminId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied' 
+      });
+    }
+
+    // Get active cycle
+    const cycle = await Cycle.findOne({
+      where: { groupId, status: 'active' },
+      include: [
+        {
+          model: User,
+          as: 'activeMember',
+          attributes: ['id', 'name', 'email', 'profilePicture']
+        }
+      ]
+    });
+
+    if (!cycle) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          hasActiveCycle: false,
+          message: 'No active cycle. Start a cycle first.'
+        }
+      });
+    }
+
+    // Get current round contributions
+    const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
+    
+    const contributions = await Contribution.findAll({
+      where: {
+        cycleId: cycle.id,
+        status: { [Op.in]: ['paid', 'completed'] },
+        createdAt: { [Op.gte]: currentRoundStart }
+      }
+    });
+
+    const activeMembers = await Membership.count({
+      where: { groupId, status: 'active' }
+    });
+
+    const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+    const commissionRate = parseFloat(group.commissionRate || 2);
+    const commissionFee = (commissionRate / 100) * totalAmount;
+    const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
+    const finalAmount = totalAmount - commissionFee;
+
+    // Get next recipient
+    const allMembers = await Membership.findAll({
+      where: { groupId, status: 'active' },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+      order: [['payoutOrder', 'ASC']]
+    });
+
+    const currentIndex = allMembers.findIndex(m => m.userId === cycle.activeMemberId);
+    const nextMember = allMembers[currentIndex + 1] || null;
+
+    // Check if payout already exists
+    const existingPayout = await Payout.findOne({
+      where: {
+        cycleId: cycle.id,
+        userId: cycle.activeMemberId,
+        status: { [Op.in]: ['pending', 'completed'] }
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        hasActiveCycle: true,
+        cycleId: cycle.id,
+        currentRound: cycle.currentRound,
+        totalRounds: cycle.totalRounds,
+        
+        currentRecipient: {
+          userId: cycle.activeMemberId,
+          name: cycle.activeMember?.name || 'Unknown',
+          email: cycle.activeMember?.email,
+          profilePicture: cycle.activeMember?.profilePicture
+        },
+
+        nextRecipient: nextMember ? {
+          userId: nextMember.userId,
+          name: nextMember.user.name,
+          position: nextMember.payoutOrder
+        } : null,
+
+        pot: {
+          totalCollected: totalAmount.toFixed(2),
+          commissionFee: commissionFee.toFixed(2),
+          penaltyFee: totalPenalties.toFixed(2),
+          finalPayout: finalAmount.toFixed(2)
+        },
+
+        contributions: {
+          received: contributions.length,
+          total: activeMembers,
+          remaining: activeMembers - contributions.length,
+          percentage: ((contributions.length / activeMembers) * 100).toFixed(2) + '%'
+        },
+
+        canTriggerPayout: contributions.length === activeMembers && !existingPayout,
+        existingPayoutId: existingPayout?.id || null,
+        
+        message: contributions.length === activeMembers 
+          ? (existingPayout ? 'Payout already created' : 'Ready for payout')
+          : `Waiting for ${activeMembers - contributions.length} more contribution(s)`
+      }
+    });
+
+  } catch (error) {
+    console.error('Get current payout info error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
+
+
+
+
 exports.handlePayoutAndRotate = async (cycleId, groupId) => {
   const { sendMail } = require('../utils/sendgrid');
   const { Op } = require('sequelize');
@@ -1359,7 +1505,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
     });
 
     if (contributions.length < members.length) {
-      console.log(`⏸️ Waiting for all members to contribute: ${contributions.length}/${members.length}`);
+      console.log(` Waiting for all members to contribute: ${contributions.length}/${members.length}`);
       return { success: false, message: 'Not all members have contributed for this round yet.' };
     }
 
@@ -1369,7 +1515,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
     const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
     const finalAmount = totalAmount - commissionFee;
 
-    // 🧾 Create payout record
+    // Create payout record
     const payout = await Payout.create({
       userId: cycle.activeMemberId,
       groupId: group.id,
@@ -1377,7 +1523,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       amount: totalAmount.toFixed(2),
       commissionFee: commissionFee.toFixed(2),
       penaltyFee: totalPenalties.toFixed(2),
-      status: 'pending',
+      status: 'completed',
       payoutDate: new Date(),
     });
 
@@ -1404,7 +1550,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
         { where: { cycleId: cycle.id, roundNumber: cycle.currentRound } }
       );
 
-      // 📩 Notify all members
+      // Notify all members
       try {
         for (const member of members) {
           await sendMail({
@@ -1422,7 +1568,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       }
 
     } else {
-      // ✅ Cycle complete
+      //  Cycle complete
       await cycle.update({ status: 'completed', endDate: new Date() });
       await group.update({ status: 'completed' });
 
@@ -1433,7 +1579,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
             subject: `Cycle Completed! - ${group.groupName}`,
             html: `
               <p>Hi ${member.user.name},</p>
-              <p>🎉 The cycle for <b>${group.groupName}</b> has successfully completed!</p>
+              <p> The cycle for <b>${group.groupName}</b> has successfully completed!</p>
               <p>All ${members.length} members have received their payouts.</p>
               <p>Total payout: <b>$${(finalAmount * members.length).toFixed(2)}</b></p>
             `
