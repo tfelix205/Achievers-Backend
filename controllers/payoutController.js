@@ -176,7 +176,7 @@ const { Op } = require('sequelize');
 //     });
 //   }
 // };
-exports.createAndProcessPayout = async (req, res) => {
+exports.createPayout = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
