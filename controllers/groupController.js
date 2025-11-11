@@ -385,7 +385,7 @@ exports.attachPayoutToGroup = async (req, res) => {
 exports.getUserGroups = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { Op } = require('sequelize');
+    
 
     const userMemberships = await Membership.findAll({
       where: { userId, status: 'active' },

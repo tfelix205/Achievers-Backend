@@ -1,6 +1,7 @@
 const { Group, Payout, Contribution, Membership, Cycle, User, PayoutAccount, sequelize } = require('../models'); 
 const korapayService = require('../services/korapayService');
 const { v4: uuidv4 } = require('uuid');
+const { Op } = require('sequelize');
 
 // Manual payout creation (for admin override)
 exports.createPayout = async (req, res) => {
