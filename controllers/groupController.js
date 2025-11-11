@@ -1484,6 +1484,126 @@ exports.getCurrentPayoutInfo = async (req, res) => {
 
 
 
+// exports.handlePayoutAndRotate = async (cycleId, groupId) => {
+//   const { sendMail } = require('../utils/sendgrid');
+//   const { Op } = require('sequelize');
+
+//   try {
+//     const cycle = await Cycle.findByPk(cycleId, { include: [{ association: 'group' }] });
+//     const group = await Group.findByPk(groupId);
+
+//     if (!cycle || !group) throw new Error('Cycle or Group not found for payout rotation.');
+
+//     // Get all active members
+//     const members = await Membership.findAll({
+//       where: { groupId: group.id, status: 'active' },
+//       include: [{ model: User, as: 'user' }],
+//       order: [['payoutOrder', 'ASC']]
+//     });
+
+//     // Ensure all members have contributed this round
+//     const contributions = await Contribution.findAll({
+//       where: { cycleId, roundNumber: cycle.currentRound, status: 'paid' }
+//     });
+
+//     if (contributions.length < members.length) {
+//       console.log(` Waiting for all members to contribute: ${contributions.length}/${members.length}`);
+//       return { success: false, message: 'Not all members have contributed for this round yet.' };
+//     }
+
+//     // Calculate totals
+//     const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+//     const commissionFee = (totalAmount * parseFloat(group.commissionRate || 2)) / 100;
+//     const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
+//     const finalAmount = totalAmount - commissionFee;
+
+//     // Create payout record
+//     const payout = await Payout.create({
+//       userId: cycle.activeMemberId,
+//       groupId: group.id,
+//       cycleId: cycle.id,
+//       amount: totalAmount.toFixed(2),
+//       commissionFee: commissionFee.toFixed(2),
+//       penaltyFee: totalPenalties.toFixed(2),
+//       status: 'completed',
+//       payoutDate: new Date(),
+//     });
+
+//     // Mark current member as received
+//     await Membership.update(
+//       { hasReceivedPayout: true },
+//       { where: { userId: cycle.activeMemberId, groupId: group.id } }
+//     );
+
+//     const currentIndex = members.findIndex(m => m.userId === cycle.activeMemberId);
+//     const nextMember = members[currentIndex + 1];
+
+//     if (nextMember) {
+//       // Move to next round
+//       await cycle.update({
+//         currentRound: cycle.currentRound + 1,
+//         activeMemberId: nextMember.userId,
+//         currentRoundStartDate: new Date()
+//       });
+
+//       // Mark contributions as completed for history
+//       await Contribution.update(
+//         { status: 'completed' },
+//         { where: { cycleId: cycle.id, roundNumber: cycle.currentRound } }
+//       );
+
+//       // Notify all members
+//       try {
+//         for (const member of members) {
+//           await sendMail({
+//             email: member.user.email,
+//             subject: `Round ${cycle.currentRound - 1} Completed - ${group.groupName}`,
+//             html: `
+//               <p>Hi ${member.user.name},</p>
+//               <p>Round ${cycle.currentRound - 1} of <b>${group.groupName}</b> has been completed.</p>
+//               <p>The payout has been made to <b>${members[currentIndex].user.name}</b>.</p>
+//             `
+//           });
+//         }
+//       } catch (emailError) {
+//         console.error('Round notification email error:', emailError.message);
+//       }
+
+//     } else {
+//       //  Cycle complete
+//       await cycle.update({ status: 'completed', endDate: new Date() });
+//       await group.update({ status: 'completed' });
+
+//       try {
+//         for (const member of members) {
+//           await sendMail({
+//             email: member.user.email,
+//             subject: `Cycle Completed! - ${group.groupName}`,
+//             html: `
+//               <p>Hi ${member.user.name},</p>
+//               <p> The cycle for <b>${group.groupName}</b> has successfully completed!</p>
+//               <p>All ${members.length} members have received their payouts.</p>
+//               <p>Total payout: <b>$${(finalAmount * members.length).toFixed(2)}</b></p>
+//             `
+//           });
+//         }
+//       } catch (emailError) {
+//         console.error('Completion email error:', emailError.message);
+//       }
+//     }
+
+//     return { success: true, payout };
+
+//   } catch (error) {
+//     console.error('Payout and rotate error:', error);
+//     throw error;
+//   }
+// };
+
+
+// Add delete group function
+
+
 exports.handlePayoutAndRotate = async (cycleId, groupId) => {
   const { sendMail } = require('../utils/sendgrid');
   const { Op } = require('sequelize');
@@ -1501,13 +1621,19 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       order: [['payoutOrder', 'ASC']]
     });
 
-    // Ensure all members have contributed this round
+    // ✅ Remove roundNumber - use currentRoundStartDate instead
+    const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
+    
     const contributions = await Contribution.findAll({
-      where: { cycleId, roundNumber: cycle.currentRound, status: 'paid' }
+      where: { 
+        cycleId, 
+        status: 'paid',
+        createdAt: { [Op.gte]: currentRoundStart } // ✅ Filter by round start date
+      }
     });
 
     if (contributions.length < members.length) {
-      console.log(` Waiting for all members to contribute: ${contributions.length}/${members.length}`);
+      console.log(`⏸️ Waiting for all members to contribute: ${contributions.length}/${members.length}`);
       return { success: false, message: 'Not all members have contributed for this round yet.' };
     }
 
@@ -1525,7 +1651,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       amount: totalAmount.toFixed(2),
       commissionFee: commissionFee.toFixed(2),
       penaltyFee: totalPenalties.toFixed(2),
-      status: 'completed',
+      status: 'pending',
       payoutDate: new Date(),
     });
 
@@ -1543,16 +1669,21 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       await cycle.update({
         currentRound: cycle.currentRound + 1,
         activeMemberId: nextMember.userId,
-        currentRoundStartDate: new Date()
+        currentRoundStartDate: new Date() // ✅ Reset round start date
       });
 
-      // Mark contributions as completed for history
+      // ✅ Mark contributions as completed (no roundNumber needed)
       await Contribution.update(
         { status: 'completed' },
-        { where: { cycleId: cycle.id, roundNumber: cycle.currentRound } }
+        { 
+          where: { 
+            cycleId: cycle.id, 
+            createdAt: { [Op.gte]: currentRoundStart } 
+          } 
+        }
       );
 
-      // Notify all members
+      // Notify members
       try {
         for (const member of members) {
           await sendMail({
@@ -1570,7 +1701,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
       }
 
     } else {
-      //  Cycle complete
+      // Cycle complete
       await cycle.update({ status: 'completed', endDate: new Date() });
       await group.update({ status: 'completed' });
 
@@ -1581,9 +1712,8 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
             subject: `Cycle Completed! - ${group.groupName}`,
             html: `
               <p>Hi ${member.user.name},</p>
-              <p> The cycle for <b>${group.groupName}</b> has successfully completed!</p>
+              <p>🎉 The cycle for <b>${group.groupName}</b> has successfully completed!</p>
               <p>All ${members.length} members have received their payouts.</p>
-              <p>Total payout: <b>$${(finalAmount * members.length).toFixed(2)}</b></p>
             `
           });
         }
@@ -1601,7 +1731,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
 };
 
 
-// Add delete group function
+
 exports.deleteGroup = async (req, res) => {
   const t = await Group.sequelize.transaction();
   
