@@ -315,39 +315,50 @@ exports.createPayout = async (req, res) => {
     }
 
     //  Check payout account with better error message
-    if (!membership.payoutAccount || !membership.payoutAccountId) {
-      await t.rollback();
-      
-      // Try to get default payout account directly
-      const defaultPayoutAccount = await PayoutAccount.findOne({
-        where: { userId, isDefault: true },
-        transaction: t
-      });
+   if (!membership.payoutAccount || !membership.payoutAccountId) {
+  // FIRST: Try to get default payout account BEFORE rolling back
+  const defaultPayoutAccount = await PayoutAccount.findOne({
+    where: { userId, isDefault: true },
+    transaction: t // Transaction still valid here
+  });
 
-      if (defaultPayoutAccount) {
-        // Link it to membership automatically
-        await membership.update(
-          { payoutAccountId: defaultPayoutAccount.id },
-          { transaction: t }
-        );
-        
-        console.log(` Auto-linked payout account for user ${userId}`);
-        // Continue with payout creation below...
-        membership.payoutAccount = defaultPayoutAccount;
-        
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: `Recipient ${membership.user?.name || 'user'} has not set up a payout account`,
-          recipientDetails: {
-            userId: userId,
-            name: membership.user?.name,
-            email: membership.user?.email
-          },
-          hint: 'Ask the user to add a payout account via POST /api/groups/payout_account'
-        });
-      }
-    }
+  if (defaultPayoutAccount) {
+    // Link it to membership automatically
+    await membership.update(
+      { payoutAccountId: defaultPayoutAccount.id },
+      { transaction: t }
+    );
+    
+    console.log(`✅ Auto-linked payout account for user ${userId}`);
+    
+    // Reload the membership to get the linked payout account
+    await membership.reload({ 
+      include: [{
+        model: PayoutAccount,
+        as: 'payoutAccount',
+        required: false
+      }],
+      transaction: t 
+    });
+    
+    // Continue with payout creation below (don't rollback)
+    
+  } else {
+    // No payout account found - NOW rollback and return
+    await t.rollback();
+    
+    return res.status(400).json({
+      success: false,
+      message: `Recipient ${membership.user?.name || 'user'} has not set up a payout account`,
+      recipientDetails: {
+        userId: userId,
+        name: membership.user?.name,
+        email: membership.user?.email
+      },
+      hint: 'Ask the user to add a payout account via POST /api/groups/payout_account'
+    });
+  }
+}
 
     if (membership.hasReceivedPayout) {
       await t.rollback();
