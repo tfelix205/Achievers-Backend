@@ -176,110 +176,62 @@ const { Op } = require('sequelize');
 //     });
 //   }
 // };
-
-exports.createPayout = async (req, res) => {
+exports.createAndProcessPayout = async (req, res) => {
   const t = await sequelize.transaction();
-  
+
   try {
     const { groupId, cycleId } = req.body;
     const adminUserId = req.user.id;
 
-    // Validate groupId
     if (!groupId) {
       await t.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'groupId is required'
-      });
+      return res.status(400).json({ success: false, message: 'groupId is required' });
     }
 
-    // Get group
     const group = await Group.findByPk(groupId, { transaction: t });
     if (!group) {
       await t.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'Group not found'
-      });
+      return res.status(404).json({ success: false, message: 'Group not found' });
     }
 
-    // Verify admin
     if (group.adminId !== adminUserId) {
       await t.rollback();
-      return res.status(403).json({
-        success: false,
-        message: 'Only admin can trigger payouts'
-      });
+      return res.status(403).json({ success: false, message: 'Only the group admin can trigger payouts' });
     }
 
-    //  Get active cycle (auto-detect if cycleId not provided or empty)
-    let cycle;
-    if (cycleId && cycleId.trim() !== '') {
-      cycle = await Cycle.findOne({
-        where: { id: cycleId, groupId, status: 'active' },
-        transaction: t
-      });
-    } else {
-      cycle = await Cycle.findOne({
-        where: { groupId, status: 'active' },
-        transaction: t
-      });
-    }
+    const cycle = await Cycle.findOne({
+      where: { id: cycleId, groupId, status: 'active' },
+      transaction: t
+    });
 
     if (!cycle) {
       await t.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'No active cycle found for this group'
-      });
+      return res.status(404).json({ success: false, message: 'No active cycle found for this group' });
     }
 
     const userId = cycle.activeMemberId;
-
     if (!userId) {
       await t.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'No active member found in current cycle'
-      });
+      return res.status(400).json({ success: false, message: 'No active member in current cycle' });
     }
 
-    // Check if payout already exists
     const existingPayout = await Payout.findOne({
-      where: {
-        cycleId: cycle.id,
-        userId,
-        status: { [Op.in]: ['pending', 'completed'] }
-      },
+      where: { cycleId: cycle.id, userId, status: { [Op.in]: ['pending', 'completed'] } },
       transaction: t
     });
 
     if (existingPayout) {
       await t.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Payout already created for this round',
-        payoutId: existingPayout.id
-      });
+      return res.status(400).json({ success: false, message: 'Payout already exists for this round', payoutId: existingPayout.id });
     }
 
-    // Verify all contributions received
     const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
-    
     const contributions = await Contribution.findAll({
-      where: {
-        cycleId: cycle.id,
-        status: { [Op.in]: ['paid', 'completed'] },
-        createdAt: { [Op.gte]: currentRoundStart }
-      },
+      where: { cycleId: cycle.id, status: { [Op.in]: ['paid', 'completed'] }, createdAt: { [Op.gte]: currentRoundStart } },
       transaction: t
     });
 
-    const activeMembers = await Membership.count({
-      where: { groupId, status: 'active' },
-      transaction: t
-    });
-
+    const activeMembers = await Membership.count({ where: { groupId, status: 'active' }, transaction: t });
     if (contributions.length < activeMembers) {
       await t.rollback();
       return res.status(400).json({
@@ -288,94 +240,36 @@ exports.createPayout = async (req, res) => {
       });
     }
 
-    //  Get membership with payout account (CRITICAL FIX)
     const membership = await Membership.findOne({
       where: { userId, groupId },
       include: [
-        {
-          model: PayoutAccount,
-          as: 'payoutAccount',
-          required: false // Don't fail if payout account missing
-        },
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'name', 'email']
-        }
+        { model: PayoutAccount, as: 'payoutAccount', required: false },
+        { model: User, as: 'user', attributes: ['id', 'name', 'email'] }
       ],
       transaction: t
     });
 
     if (!membership) {
       await t.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'Membership not found for recipient'
-      });
+      return res.status(404).json({ success: false, message: 'Recipient not found in group' });
     }
 
-    //  Check payout account with better error message
-   if (!membership.payoutAccount || !membership.payoutAccountId) {
-  // FIRST: Try to get default payout account BEFORE rolling back
-  const defaultPayoutAccount = await PayoutAccount.findOne({
-    where: { userId, isDefault: true },
-    transaction: t // Transaction still valid here
-  });
-
-  if (defaultPayoutAccount) {
-    // Link it to membership automatically
-    await membership.update(
-      { payoutAccountId: defaultPayoutAccount.id },
-      { transaction: t }
-    );
-    
-    console.log(`✅ Auto-linked payout account for user ${userId}`);
-    
-    // Reload the membership to get the linked payout account
-    await membership.reload({ 
-      include: [{
-        model: PayoutAccount,
-        as: 'payoutAccount',
-        required: false
-      }],
-      transaction: t 
-    });
-    
-    // Continue with payout creation below (don't rollback)
-    
-  } else {
-    // No payout account found - NOW rollback and return
-    await t.rollback();
-    
-    return res.status(400).json({
-      success: false,
-      message: `Recipient ${membership.user?.name || 'user'} has not set up a payout account`,
-      recipientDetails: {
-        userId: userId,
-        name: membership.user?.name,
-        email: membership.user?.email
-      },
-      hint: 'Ask the user to add a payout account via POST /api/groups/payout_account'
-    });
-  }
-}
+    if (!membership.payoutAccount) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: `Recipient ${membership.user.name} has no payout account configured` });
+    }
 
     if (membership.hasReceivedPayout) {
       await t.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Member has already received payout this cycle'
-      });
+      return res.status(400).json({ success: false, message: 'Member has already received payout this cycle' });
     }
 
-    // Calculate amounts
     const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
     const commissionRate = parseFloat(group.commissionRate) || 2;
     const commissionFee = (commissionRate / 100) * totalAmount;
     const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
     const finalAmount = totalAmount - commissionFee - totalPenalties;
 
-    // Create payout
     const payout = await Payout.create({
       groupId,
       userId,
@@ -387,54 +281,99 @@ exports.createPayout = async (req, res) => {
       payoutDate: new Date()
     }, { transaction: t });
 
-    // Mark member as received
+    await payout.update({ status: 'completed' }, { transaction: t });
     await membership.update({ hasReceivedPayout: true }, { transaction: t });
 
-    // Mark contributions as completed
     await Contribution.update(
       { status: 'completed' },
-      { 
-        where: { 
-          cycleId: cycle.id, 
-          createdAt: { [Op.gte]: currentRoundStart } 
-        }, 
-        transaction: t 
-      }
+      { where: { cycleId: cycle.id, createdAt: { [Op.gte]: currentRoundStart } }, transaction: t }
     );
+
+    // ✅ Rotation logic
+    const members = await Membership.findAll({
+      where: { groupId, status: 'active' },
+      order: [['payoutOrder', 'ASC']],
+      include: [{ model: User, as: 'user' }]
+    });
+
+    const currentIndex = members.findIndex(m => m.userId === userId);
+    const nextMember = members[currentIndex + 1];
+
+    let rotationMessage;
+    if (nextMember) {
+      const nextRoundStartDate = new Date();
+      await cycle.update({
+        currentRound: cycle.currentRound + 1,
+        activeMemberId: nextMember.userId,
+        currentRoundStartDate: nextRoundStartDate
+      });
+      rotationMessage = `✅ Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`;
+      console.log(rotationMessage);
+      console.log(`🔄 New round starts at: ${nextRoundStartDate.toISOString()}`);
+    } else {
+      await cycle.update({ status: 'completed', endDate: new Date() });
+      await group.update({ status: 'completed' });
+      rotationMessage = `🏁 Cycle completed for group: ${group.groupName}`;
+      console.log(rotationMessage);
+    }
+
+    // ✅ Notify all members
+    const { sendMail } = require('../utils/sendgrid');
+    try {
+      for (const member of members) {
+        await sendMail({
+          email: member.user.email,
+          subject: nextMember
+            ? `Round ${cycle.currentRound} Completed - ${group.groupName}`
+            : `Cycle Completed! - ${group.groupName}`,
+          html: nextMember
+            ? `<p>Hi ${member.user.name},</p>
+               <p>Round ${cycle.currentRound} of <b>${group.groupName}</b> has been completed.</p>
+               <p>Payout made to: <b>${members[currentIndex].user.name}</b></p>
+               <p>Next recipient: <b>${nextMember.user.name}</b></p>
+               <p>Please make your contribution for Round ${cycle.currentRound}.</p>`
+            : `<p>Hi ${member.user.name},</p>
+               <p>The cycle for <b>${group.groupName}</b> has successfully completed!</p>
+               <p>All ${members.length} members have received their payouts.</p>`
+        });
+      }
+    } catch (emailError) {
+      console.error('Email notification error:', emailError.message);
+    }
 
     await t.commit();
 
-    res.status(201).json({
-  success: true,
-  message: 'Payout created successfully. Please process it to complete transfer.',
-  data: {
-    payoutId: payout.id,
-    recipient: {
-      name: membership.user?.name,
-      userId: userId,
-      email: membership.user?.email
-    },
-    amount: totalAmount.toFixed(2),
-    commissionFee: commissionFee.toFixed(2),
-    finalAmount: finalAmount.toFixed(2),
-    status: payout.status,
-    payoutAccount: membership.payoutAccount ? {
-      bankName: membership.payoutAccount.bankName,
-      accountNumber: membership.payoutAccount.accountNumber
-    } : null
-  }
-});
+    return res.status(200).json({
+      success: true,
+      message: rotationMessage,
+      data: {
+        payout,
+        recipient: {
+          id: membership.user.id,
+          name: membership.user.name,
+          email: membership.user.email,
+          account: {
+            bank: membership.payoutAccount.bankName,
+            accountNumber: membership.payoutAccount.accountNumber
+          }
+        },
+        nextRecipient: nextMember ? { id: nextMember.user.id, name: nextMember.user.name } : null,
+        amounts: {
+          total: totalAmount.toFixed(2),
+          commissionFee: commissionFee.toFixed(2),
+          penaltyFee: totalPenalties.toFixed(2),
+          finalAmount: finalAmount.toFixed(2)
+        }
+      }
+    });
 
   } catch (error) {
     if (t && !t.finished) await t.rollback();
-    console.error('Create payout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
+    console.error('Create & process payout error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
 
 
 // Get all payouts for a group
