@@ -289,7 +289,7 @@ exports.createPayout = async (req, res) => {
       { where: { cycleId: cycle.id, createdAt: { [Op.gte]: currentRoundStart } }, transaction: t }
     );
 
-    // ✅ Rotation logic
+    //  Rotation logic
     const members = await Membership.findAll({
       where: { groupId, status: 'active' },
       order: [['payoutOrder', 'ASC']],
@@ -307,17 +307,17 @@ exports.createPayout = async (req, res) => {
         activeMemberId: nextMember.userId,
         currentRoundStartDate: nextRoundStartDate
       });
-      rotationMessage = `✅ Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`;
+      rotationMessage = ` Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`;
       console.log(rotationMessage);
-      console.log(`🔄 New round starts at: ${nextRoundStartDate.toISOString()}`);
+      console.log(` New round starts at: ${nextRoundStartDate.toISOString()}`);
     } else {
       await cycle.update({ status: 'completed', endDate: new Date() });
       await group.update({ status: 'completed' });
-      rotationMessage = `🏁 Cycle completed for group: ${group.groupName}`;
+      rotationMessage = ` Cycle completed for group: ${group.groupName}`;
       console.log(rotationMessage);
     }
 
-    // ✅ Notify all members
+    //  Notify all members
     const { sendMail } = require('../utils/sendgrid');
     try {
       for (const member of members) {

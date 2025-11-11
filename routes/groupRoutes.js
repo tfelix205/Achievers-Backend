@@ -743,7 +743,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /groups/{groupId}/current-round-contributions:
+ * /groups/{groupId}/current_round_contributions:
  *   get:
  *     summary: Get current round contributions
  *     description: >

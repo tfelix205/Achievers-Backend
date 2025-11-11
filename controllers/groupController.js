@@ -102,51 +102,40 @@ exports.addPayoutAccount = async (req, res) => {
 
     if (!bankName || !accountNumber) {
       await transaction.rollback();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Bank name and account number are required.' 
+        message: 'Bank name and account number are required.'
       });
     }
 
     const normalizedBankName = bankName.trim();
     const normalizedAccountNumber = accountNumber.trim();
 
-    // Check if user exists
+    //  Check if user exists
     const user = await User.findByPk(userId, { transaction });
     if (!user) {
       await transaction.rollback();
-      return res.status(404).json({ 
-        success: false,
-        message: 'User not found.' 
-      });
+      return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    // Check for duplicate account
+    //  Prevent duplicates
     const existingAccount = await PayoutAccount.findOne({
-      where: { 
-        userId, 
-        accountNumber: normalizedAccountNumber 
-      },
+      where: { userId, accountNumber: normalizedAccountNumber },
       transaction
     });
 
     if (existingAccount) {
       await transaction.rollback();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'This account number is already registered.' 
+        message: 'This account number is already registered.'
       });
     }
 
-    //  If this is marked as default OR user has no payout accounts, make it default
-    const existingPayouts = await PayoutAccount.count({ 
-      where: { userId }, 
-      transaction 
-    });
-    
-    const shouldBeDefault = isDefault || existingPayouts === 0;
+    //  Determine if this should be default
+    const existingCount = await PayoutAccount.count({ where: { userId }, transaction });
+    const shouldBeDefault = isDefault || existingCount === 0;
 
-    // If setting as default, reset other accounts
     if (shouldBeDefault) {
       await PayoutAccount.update(
         { isDefault: false },
@@ -154,39 +143,60 @@ exports.addPayoutAccount = async (req, res) => {
       );
     }
 
-    // Create payout account WITHOUT requiring membershipId
+    //  Create payout account for user
     const payout = await PayoutAccount.create(
       {
         userId,
-        membershipId: null, 
+        membershipId: null,
         bankName: normalizedBankName,
         accountNumber: normalizedAccountNumber,
-        isDefault: shouldBeDefault,
+        isDefault: shouldBeDefault
       },
       { transaction }
     );
+
+    // Check if user belongs to any group
+    const memberships = await Membership.findAll({
+      where: { userId },
+      transaction
+    });
+
+    if (memberships.length > 0) {
+      console.log(` Linking payout account to ${memberships.length} membership(s)`);
+
+      for (const membership of memberships) {
+        await membership.update(
+          { payoutAccountId: payout.id },
+          { transaction }
+        );
+      }
+    } else {
+      console.log('User is not in any group — skipping membership linking.');
+    }
 
     await transaction.commit();
 
     res.status(200).json({
       success: true,
-      message: 'Payout account added successfully.',
+      message: memberships.length > 0
+        ? `Payout account added and linked to ${memberships.length} group membership(s).`
+        : 'Payout account added successfully (no active group memberships).',
       data: {
         id: payout.id,
         bankName: payout.bankName,
         accountNumber: payout.accountNumber,
         isDefault: payout.isDefault,
-        createdAt: payout.createdAt
+        linkedMemberships: memberships.length
       }
     });
 
   } catch (error) {
     if (transaction && !transaction.finished) await transaction.rollback();
     console.error('Add payout account error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Server error', 
-      error: error.message 
+      message: 'Server error',
+      error: error.message
     });
   }
 };
@@ -1718,7 +1728,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
     });
 
     if (contributions.length < members.length) {
-      console.log(`⏸️ Waiting: ${contributions.length}/${members.length} contributed`);
+      console.log(` Waiting: ${contributions.length}/${members.length} contributed`);
       return { success: false, message: 'Not all members have contributed yet.' };
     }
 
@@ -1732,7 +1742,7 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
     });
 
     if (existingPayout) {
-      console.log(`⚠️ Payout already exists for this round:`, existingPayout.id);
+      console.log(` Payout already exists for this round:`, existingPayout.id);
       return { success: false, message: 'Payout already created for this round' };
     }
 
@@ -1784,8 +1794,8 @@ exports.handlePayoutAndRotate = async (cycleId, groupId) => {
         currentRoundStartDate: nextRoundStartDate 
       });
 
-      console.log(`✅ Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`);
-      console.log(`🔄 New round starts at: ${nextRoundStartDate.toISOString()}`);
+      console.log(` Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`);
+      console.log(` New round starts at: ${nextRoundStartDate.toISOString()}`);
 
       // Notify members
       try {
