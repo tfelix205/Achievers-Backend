@@ -24,7 +24,8 @@ const {groupRegisterValidator} = require('../middleware/validator')
   deleteGroup,
   getAllPendingRequest,
   getAllApprovedMembers,
-  getCurrentPayoutInfo
+  getCurrentPayoutInfo,
+  getCurrentRoundContributions
 } = require('../controllers/groupController');
 
 //group management routes
@@ -52,6 +53,7 @@ router.get('/:id/payout_order', authenticate, getPayoutOrder);
 router.put('/:id/payout_order', authenticate, setPayoutOrder);
 router.post('/:id/randomize_payout_order', authenticate, randomizePayoutOrder);
 router.get('/:groupId/payout_info', authenticate, getCurrentPayoutInfo);
+router.get('/:groupId/current-round-contributions', authenticate, getCurrentRoundContributions);
 
 // cycle management
 router.post('/:id/start_cycle', authenticate, startCycle);
@@ -734,6 +736,73 @@ module.exports = router;
  *                 error:
  *                   type: string
  *                   example: Detailed error message.
+ */
+
+
+
+
+/**
+ * @swagger
+ * /groups/{groupId}/current-round-contributions:
+ *   get:
+ *     summary: Get current round contributions
+ *     description: >
+ *       Retrieves all contributions for the current round in the active cycle of a group.  
+ *       Includes details about contributors, total contributions, active members, and any detected duplicate payments.  
+ *       Only available to members or admins of the group.
+ *     tags:
+ *       - Contributions
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the group.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved contributions for the current round.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 cycleId: "cyc_12345"
+ *                 currentRound: 3
+ *                 roundStartDate: "2025-11-01T00:00:00.000Z"
+ *                 contributions:
+ *                   - userId: "usr_101"
+ *                     userName: "Jane Doe"
+ *                     amount: "500.00"
+ *                     status: "paid"
+ *                     createdAt: "2025-11-10T09:45:00.000Z"
+ *                   - userId: "usr_202"
+ *                     userName: "John Smith"
+ *                     amount: "500.00"
+ *                     status: "completed"
+ *                     createdAt: "2025-11-09T14:10:00.000Z"
+ *                 summary:
+ *                   totalContributions: 2
+ *                   activeMembers: 5
+ *                   duplicates: null
+ *                   progress: "2/5"
+ *       404:
+ *         description: No active cycle found for the specified group.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "No active cycle"
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Server error"
+ *               error: "Error message here"
  */
 
 
