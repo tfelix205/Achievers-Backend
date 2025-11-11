@@ -405,25 +405,25 @@ exports.createPayout = async (req, res) => {
     await t.commit();
 
     res.status(201).json({
-      success: true,
-      message: 'Payout created successfully. Please process it to complete transfer.',
-      data: {
-        payoutId: payout.id,
-        recipient: {
-          name: membership.user?.name,
-          userId: userId,
-          email: membership.user?.email
-        },
-        amount: totalAmount.toFixed(2),
-        commissionFee: commissionFee.toFixed(2),
-        finalAmount: finalAmount.toFixed(2),
-        status: payout.status,
-        payoutAccount: {
-          bankName: membership.payoutAccount.bankName,
-          accountNumber: membership.payoutAccount.accountNumber
-        }
-      }
-    });
+  success: true,
+  message: 'Payout created successfully. Please process it to complete transfer.',
+  data: {
+    payoutId: payout.id,
+    recipient: {
+      name: membership.user?.name,
+      userId: userId,
+      email: membership.user?.email
+    },
+    amount: totalAmount.toFixed(2),
+    commissionFee: commissionFee.toFixed(2),
+    finalAmount: finalAmount.toFixed(2),
+    status: payout.status,
+    payoutAccount: membership.payoutAccount ? {
+      bankName: membership.payoutAccount.bankName,
+      accountNumber: membership.payoutAccount.accountNumber
+    } : null
+  }
+});
 
   } catch (error) {
     if (t && !t.finished) await t.rollback();
