@@ -7,6 +7,7 @@ const { joinRequestMail } = require('../utils/joinRequestMail');
 const { cycleStartedMail } = require('../utils/cycleStartedMail');
 const { contributionReceivedMail } = require('../utils/contributionReceivedMail');
 const { cycleCompletedMail } = require('../utils/cycleCompletedMail');
+const { Op } = require('sequelize');
 
 //  Create a new group
 exports.createGroup = async (req, res) => {
