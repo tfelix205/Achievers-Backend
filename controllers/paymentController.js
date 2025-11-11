@@ -1,7 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const korapayService = require('../services/korapayService');
-const { User, Group, Contribution, Cycle, sequelize } = require('../models');
+const { User, Group, Contribution, Cycle, sequelize, Membership } = require('../models');
 const { Op } = require('sequelize');
+
 
 
 exports.initializeContribution = async (req, res) => {
@@ -191,6 +192,16 @@ exports.verifyContribution = async (req, res) => {
       }, { transaction: t });
 
       await t.commit();
+     
+      const user = await User.findByPk(userId, {
+  attributes: ['id', 'name', 'email', 'profilePicture']
+});
+
+const membership = await Membership.findOne({
+  where: { userId, groupId },
+  attributes: ['role']
+});
+
 
       // ✅ Check if all members contributed THIS ROUND (using correct date)
       const totalContributions = await Contribution.count({ 
@@ -201,7 +212,6 @@ exports.verifyContribution = async (req, res) => {
         } 
       });
       
-      const { Membership } = require('../models');
       const activeMembers = await Membership.count({ 
         where: { groupId: groupId, status: 'active' } 
       });
@@ -210,40 +220,47 @@ exports.verifyContribution = async (req, res) => {
 
       //  Trigger payout if all contributed
       if (totalContributions >= activeMembers) {
-        console.log(`✅ All members contributed! Triggering payout...`);
+        console.log(`✅ All members contributed! awaiting Trigger payout...`);
         
-        try {
-          const { handlePayoutAndRotate } = require('./groupController');
-          await handlePayoutAndRotate(cycleId, groupId);
-        } catch (error) {
-          console.error('Payout rotation error:', error);
-          // Don't fail the contribution if payout fails
-        }
+        // try {
+        //   const { handlePayoutAndRotate } = require('./groupController');
+        //   // await handlePayoutAndRotate(cycleId, groupId);
+        // } catch (error) {
+        //   console.error('Payout rotation error:', error);
+        //   // Don't fail the contribution if payout fails
+        // }
       } else {
         console.log(`⏸️ Waiting for ${activeMembers - totalContributions} more contribution(s)`);
       }
 
       return res.status(200).json({
-        success: true,
-        message: 'Payment verified and contribution recorded',
-        data: {
-          contribution: {
-            id: contribution.id,
-            amount: contribution.amount,
-            status: contribution.status,
-            paymentReference: contribution.paymentReference,
-            contributionDate: contribution.contributionDate
-          },
-          cycleProgress: {
-            currentRound: cycle.currentRound,
-            contributed: totalContributions,
-            total: activeMembers,
-            remaining: activeMembers - totalContributions,
-            percentage: ((totalContributions / activeMembers) * 100).toFixed(2) + '%',
-            allContributed: totalContributions >= activeMembers
-          }
-        }
-      });
+  success: true,
+  message: 'Payment verified and contribution recorded',
+  data: {
+    contributor: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      profilePicture: user.profilePicture,
+      role: membership?.role || 'member'
+    },
+    contribution: {
+      id: contribution.id,
+      amount: contribution.amount,
+      status: contribution.status,
+      paymentReference: contribution.paymentReference,
+      contributionDate: contribution.contributionDate
+    },
+    cycleProgress: {
+      currentRound: cycle.currentRound,
+      contributed: totalContributions,
+      total: activeMembers,
+      remaining: activeMembers - totalContributions,
+      percentage: ((totalContributions / activeMembers) * 100).toFixed(2) + '%',
+      allContributed: totalContributions >= activeMembers
+    }
+  }
+});
 
     } else if (payment.status === 'failed') {
       // Record failed payment
@@ -259,6 +276,9 @@ exports.verifyContribution = async (req, res) => {
       }, { transaction: t });
 
       await t.commit();
+
+
+      
 
       return res.status(400).json({
         success: false,
