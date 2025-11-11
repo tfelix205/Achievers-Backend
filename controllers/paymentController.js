@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const korapayService = require('../services/korapayService');
 const { User, Group, Contribution, Cycle, sequelize } = require('../models');
+const { Op } = require('sequelize');
+
 
 exports.initializeContribution = async (req, res) => {
   try {
@@ -145,7 +147,6 @@ exports.verifyContribution = async (req, res) => {
       await t.commit();
 
       // Check if all members contributed
-      const { Op } = require('sequelize');
       const roundStartTime = new Date();
       roundStartTime.setHours(0, 0, 0, 0);
 
