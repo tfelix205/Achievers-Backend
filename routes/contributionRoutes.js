@@ -39,13 +39,14 @@ module.exports = router;
  *           schema:
  *             type: object
  *             required:
- *               - id
+ *               - groupId
  *               - amount
  *             properties:
- *               id:
- *                 type: integer
- *                 description: Group ID where the contribution is being made.
- *                 example: 12
+ *               groupId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: UUID of the group where the contribution is being made.
+ *                 example: "77jh7hh-jj7986-j89j8-87j7j6j"
  *               amount:
  *                 type: number
  *                 format: float
@@ -54,12 +55,12 @@ module.exports = router;
  *               paymentReference:
  *                 type: string
  *                 description: Optional unique payment reference to prevent duplicates.
- *                 example: KORA1234XYZ
+ *                 example: "KORA1234XYZ"
  *               paymentMethod:
  *                 type: string
  *                 description: Payment method used.
  *                 enum: [manual, korapay, wallet]
- *                 example: manual
+ *                 example: "manual"
  *               paymentMetadata:
  *                 type: object
  *                 description: Optional additional metadata for payment gateways.
@@ -76,7 +77,7 @@ module.exports = router;
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: Contribution recorded successfully.
+ *                   example: "Contribution recorded successfully."
  *                 data:
  *                   type: object
  *                   properties:
@@ -84,27 +85,40 @@ module.exports = router;
  *                       type: object
  *                       properties:
  *                         id:
- *                           type: integer
- *                           example: 101
+ *                           type: string
+ *                           format: uuid
+ *                           example: "a1b2c3d4-e5f6-7890-1234-56789abcdef0"
+ *                         userId:
+ *                           type: string
+ *                           format: uuid
+ *                           example: "5e2f7e1d-789c-4bdf-b95a-19b1a8d2e431"
+ *                         groupId:
+ *                           type: string
+ *                           format: uuid
+ *                           example: "a1b2c3d4-e5f6-7890-1234-56789abcdef0"
+ *                         cycleId:
+ *                           type: string
+ *                           format: uuid
+ *                           example: "2c4d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f"
  *                         amount:
  *                           type: number
  *                           example: 5000
  *                         status:
  *                           type: string
- *                           example: paid
+ *                           example: "paid"
  *                         penaltyFee:
  *                           type: number
  *                           example: 0
  *                         paymentReference:
  *                           type: string
- *                           example: KORA1234XYZ
+ *                           example: "KORA1234XYZ"
  *                         paymentMethod:
  *                           type: string
- *                           example: manual
+ *                           example: "manual"
  *                         contributionDate:
  *                           type: string
  *                           format: date-time
- *                           example: 2025-11-02T09:15:00.000Z
+ *                           example: "2025-11-02T09:15:00.000Z"
  *                     cycleProgress:
  *                       type: object
  *                       properties:
@@ -129,7 +143,7 @@ module.exports = router;
  *               properties:
  *                 message:
  *                   type: string
- *                   example: You have already contributed for this round.
+ *                   example: "You have already contributed for this round."
  *       403:
  *         description: User is not a member of the group
  *       404:
@@ -137,7 +151,6 @@ module.exports = router;
  *       500:
  *         description: Internal server error
  */
-
 
 /**
  * @swagger
@@ -154,10 +167,11 @@ module.exports = router;
  *       - name: groupId
  *         in: path
  *         required: true
- *         description: ID of the group whose contribution history is being retrieved.
+ *         description: UUID of the group whose contribution history is being retrieved.
  *         schema:
- *           type: integer
- *           example: 12
+ *           type: string
+ *           format: uuid
+ *           example: "2c4d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f"
  *     responses:
  *       200:
  *         description: Contribution history retrieved successfully
@@ -178,36 +192,38 @@ module.exports = router;
  *                         type: object
  *                         properties:
  *                           id:
- *                             type: integer
- *                             example: 101
+ *                             type: string
+ *                             format: uuid
+ *                             example: "a1b2c3d4-e5f6-7890-1234-56789abcdef0"
  *                           amount:
  *                             type: number
  *                             example: 5000
  *                           status:
  *                             type: string
- *                             example: paid
+ *                             example: "paid"
  *                           paymentMethod:
  *                             type: string
- *                             example: korapay
+ *                             example: "korapay"
  *                           penaltyFee:
  *                             type: number
  *                             example: 0
  *                           contributionDate:
  *                             type: string
  *                             format: date-time
- *                             example: 2025-11-01T08:30:00.000Z
+ *                             example: "2025-11-01T08:30:00.000Z"
  *                           cycle:
  *                             type: object
  *                             properties:
  *                               id:
- *                                 type: integer
- *                                 example: 3
+ *                                 type: string
+ *                                 format: uuid
+ *                                 example: "2c4d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f"
  *                               currentRound:
  *                                 type: integer
  *                                 example: 2
  *                               status:
  *                                 type: string
- *                                 example: active
+ *                                 example: "active"
  *                     summary:
  *                       type: object
  *                       properties:
@@ -239,4 +255,3 @@ module.exports = router;
  *       500:
  *         description: Internal server error
  */
-

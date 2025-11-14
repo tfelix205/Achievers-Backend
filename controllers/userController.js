@@ -5,7 +5,7 @@ const { Op } = require('sequelize');
 const { signupMail } = require('../utils/signup_mail');
 const { sendMail } = require('../utils/sendgrid');
 const { passwordResetMail } = require('../utils/resetPasswordMail')
-const nameToTitleCase = require('../helper/nameConverter');
+const {nameToTitleCase} = require('../helper/nameConverter');
 const cloudinary = require('../config/cloudinary');
 const fs = require('fs');
 
@@ -37,9 +37,9 @@ exports.register = async (req, res) => {
     const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     const newUser = await User.create({
-      name: nameToTitleCase(name),
-      email,
-      phone,
+      name: nameToTitleCase(name).trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
       password: hash,
       otp,
       otpExpiry,
@@ -68,15 +68,12 @@ exports.register = async (req, res) => {
   }
 };
 
-
-
-
 exports.verifyEmail = async (req, res) => {
     try {
 
         const { email, otp } = req.body;
 
-        const user = await User.findOne({ where: { email }});
+        const user = await User.findOne({ where: { email: email.toLowerCase().trim() }});
 
         if (!user) {
             return res.status(404).json({
@@ -186,7 +183,7 @@ exports.resendOtp = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({ where: { email: email.toLowerCase().trim() } });
     if (!user) return res.status(404).json({ message: 'Invalid credentials' });
 
     const valid = await bcrypt.compare(password, user.password);
@@ -228,7 +225,7 @@ exports.getProfile = async (req, res) => {
         include: [
           {
             model: Group,
-            as: 'createdGroups',
+            as: 'groups',
             attributes: ['id', 'groupName', 'status']
           }
         ]
@@ -362,7 +359,7 @@ exports.forgotPassword = async (req, res) => {
         
         const { email } = req.body;
 
-        const user = await User.findOne({ where: { email }});
+        const user = await User.findOne({ where: { email: email.toLowerCase().trim() }});
 
         if(!user) {
             return res.status(404).json({
@@ -454,7 +451,7 @@ exports.getOneUser = async (req, res) => {
     const {id} = req.params;
 
     const user = await User.findByPk(id, {
-      attributes: {  include: ['id', 'name', 'email']}
+      attributes: {  exclude: ['password', 'otp', 'otpExpiry']}
     })
 
     if (!user) {

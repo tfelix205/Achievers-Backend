@@ -54,12 +54,5 @@ module.exports = (sequelize, DataTypes) => {
         }
     });
 
-    Payout.associate = (models) => {
-        Payout.belongsTo(models.Group, { foreignKey: 'groupId', as: 'group' });
-        Payout.belongsTo(models.User, { foreignKey: 'userId', as: 'user' });
-        Payout.belongsTo(models.PlatformWallet, { foreignKey: 'platformWalletId', as: 'platformWallet' });
-        Payout.belongsTo(models.Cycle, { foreignKey: 'cycleId', as: 'cycle' });
-    };
-
     return Payout;
 };

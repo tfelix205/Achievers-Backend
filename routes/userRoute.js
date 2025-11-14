@@ -673,7 +673,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /getuser/{id}:
+ * /api/users/getuser/{id}:
  *   get:
  *     summary: Get details of a single user
  *     description: Retrieves a specific user's basic details by their ID.
@@ -735,4 +735,3 @@ module.exports = router;
  *                   type: string
  *                   example: Database connection failed
  */
-

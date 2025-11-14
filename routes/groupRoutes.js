@@ -5,6 +5,9 @@ const {groupRegisterValidator} = require('../middleware/validator')
  const { 
   createGroup,
   addPayoutAccount,
+  getUserPayoutAccounts,      
+  updatePayoutAccount,        
+  deletePayoutAccount,         
   attachPayoutToGroup,
   getUserGroups,
   generateInviteLink,
@@ -17,30 +20,47 @@ const {groupRegisterValidator} = require('../middleware/validator')
   endCycle,
   getPayoutOrder,
   setPayoutOrder,
-  randomizePayoutOrder
+  randomizePayoutOrder,
+  deleteGroup,
+  getAllPendingRequest,
+  getAllApprovedMembers,
+  getCurrentPayoutInfo,
+  getCurrentRoundContributions
 } = require('../controllers/groupController');
 
-
+//group management routes
 router.post('/create', authenticate, groupRegisterValidator, createGroup);
 router.get('/all', authenticate, getUserGroups);
 router.get('/:id', authenticate, getGroupDetails);
-router.get('/:id/invite', authenticate, generateInviteLink);
-router.post('/:id/join', authenticate, joinGroup);
 router.get('/:id/summary', authenticate, getGroupSummary);
+router.delete('/:id', authenticate, deleteGroup);
 
+// invite & membership routes
+router.get('/generate_invite/:id', authenticate, generateInviteLink);
+router.post('/join/:id/:invite', authenticate, joinGroup);
+router.get('/:groupId/pending_requests', authenticate, getAllPendingRequest);
+router.post('/:groupId/join_request/:memberId', authenticate, manageJoinRequest);
+router.get('/:groupId/approved-members', authenticate, getAllApprovedMembers)
 
-router.post('/payout-account', authenticate, addPayoutAccount);
+//payout management
+router.post('/payout_account', authenticate, addPayoutAccount);
+router.get('/user/payout_accounts', authenticate, getUserPayoutAccounts);
+router.put('/payout_account/:payoutAccountId', authenticate, updatePayoutAccount);
+router.delete('/payout_account/:payoutAccountId', authenticate, deletePayoutAccount);
+
 // router.post('/:groupId/attach-payout', authenticate, attachPayoutToGroup);
-router.post('/:groupId/join-request/:memberId', authenticate, manageJoinRequest);
-router.get('/:id/payout-order', authenticate, getPayoutOrder);
-router.put('/:id/payout-order', authenticate, setPayoutOrder);
-router.post('/:id/randomize-payout-order', authenticate, randomizePayoutOrder);
-router.post('/:id/start-cycle', authenticate, startCycle);
-router.post('/:id/contribute', authenticate, makeContribution);
-router.post('/:id/end-cycle', authenticate, endCycle);
+router.get('/:id/payout_order', authenticate, getPayoutOrder);
+router.put('/:id/payout_order', authenticate, setPayoutOrder);
+router.post('/:id/randomize_payout_order', authenticate, randomizePayoutOrder);
+router.get('/:groupId/payout_info', authenticate, getCurrentPayoutInfo);
+router.get('/:groupId/current-round-contributions', authenticate, getCurrentRoundContributions);
 
+// cycle management
+router.post('/:id/start_cycle', authenticate, startCycle);
+router.post('/:id/end_cycle', authenticate, endCycle);
 
-
+//options
+// router.post('/:id/contribute', authenticate, makeContribution);
 
 
 
@@ -206,63 +226,114 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/invite:
+ * /api/groups/generate_invite/{id}:
  *   get:
  *     summary: Generate an invite link for the group (Admin only)
+ *     description: Only the group admin can generate an invite link that other users can use to join the group.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - name: id
  *         in: path
- *         description: Group ID
+ *         description: The ID of the group
  *         required: true
  *         schema:
  *           type: string
  *     responses:
  *       200:
  *         description: Invite link generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 inviteLink:
+ *                   type: string
+ *                   example: https://frontend.com/join_group/1234/ABCD12
  *       403:
- *         description: Only admin can generate invite links
+ *         description: Only the group admin can generate invite links
  *       404:
  *         description: Group not found
+ *       500:
+ *         description: Server error
  */
 
 /**
  * @swagger
- * /api/groups/{id}/join:
+ * /api/groups/join/{id}/{invite}:
  *   post:
  *     summary: Request to join a group using an invite link
+ *     description: Allows an authenticated user to request to join a group using a valid invite code.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - name: id
  *         in: path
- *         description: Group ID
+ *         description: The ID of the group
  *         required: true
  *         schema:
  *           type: string
  *       - name: invite
- *         in: query
- *         description: Invite code
+ *         in: path
+ *         description: The invite code from the invite link
  *         required: true
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Join request sent
+ *         description: Join request sent successfully and pending admin approval
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Join request sent successfully. Waiting for admin approval.
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     groupName:
+ *                       type: string
+ *                       example: Achievers Group
+ *                     admin:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           example: 1
+ *                         name:
+ *                           type: string
+ *                           example: John Doe
+ *                         email:
+ *                           type: string
+ *                           example: johndoe@example.com
+ *                     contributionAmount:
+ *                       type: number
+ *                       example: 10000
+ *                     totalMembers:
+ *                       type: integer
+ *                       example: 10
+ *                     availableSpots:
+ *                       type: integer
+ *                       example: 3
  *       400:
- *         description: Invalid or expired invite link
+ *         description: Invalid or expired invite link, or user missing payout account
  *       404:
- *         description: Group not found
+ *         description: Group or user not found
+ *       500:
+ *         description: Server error
  */
+
 
 /**
  * @swagger
- * /api/groups/payout-account:
+ * /api/groups/payout_account:
  *   post:
- *     summary: Add a new payout account for the user
+ *     summary: Add a new payout account
+ *     description: Allows a user to add a bank account for receiving payouts. Users can add accounts before joining any group.
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -278,22 +349,246 @@ module.exports = router;
  *             properties:
  *               bankName:
  *                 type: string
+ *                 example: "Access Bank"
  *               accountNumber:
  *                 type: string
+ *                 example: "0123456789"
  *               isDefault:
  *                 type: boolean
+ *                 description: Set as default account (first account is always default)
+ *                 example: true
  *     responses:
  *       200:
  *         description: Payout account added successfully
  *       400:
- *         description: Missing bank details
+ *         description: Missing required fields or duplicate account
+ *       404:
+ *         description: User not found
  *       500:
  *         description: Server error
  */
 
 /**
  * @swagger
- * /api/groups/{groupId}/join-request/{memberId}:
+ * /api/groups/user/payout_accounts:
+ *   get:
+ *     summary: Get all payout accounts for the authenticated user
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of user's payout accounts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       bankName:
+ *                         type: string
+ *                       accountNumber:
+ *                         type: string
+ *                       isDefault:
+ *                         type: boolean
+ *                       createdAt:
+ *                         type: string
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/groups/payout_account/{payoutAccountId}:
+ *   put:
+ *     summary: Update a payout account
+ *     description: Update bank details or set as default account
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: payoutAccountId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               bankName:
+ *                 type: string
+ *               accountNumber:
+ *                 type: string
+ *               isDefault:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Account updated successfully
+ *       404:
+ *         description: Payout account not found
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /api/groups/payout_account/{payoutAccountId}:
+ *   delete:
+ *     summary: Delete a payout account
+ *     description: Delete an account if it's not linked to any active memberships
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: payoutAccountId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *       400:
+ *         description: Cannot delete - account is linked to active memberships
+ *       404:
+ *         description: Payout account not found
+ *       500:
+ *         description: Server error
+ */
+
+
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/pending_requests:
+ *   get:
+ *     summary: Get all pending join requests for a group
+ *     description: Retrieve all pending join requests for a specific group. Only the group admin can access this endpoint.
+ *     tags:
+ *       - Groups
+ *     security:
+ *       - bearerAuth: []   # JWT or similar authentication
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the group
+ *     responses:
+ *       200:
+ *         description: List of pending requests retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Pending requests retrieved successfully.
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "12345"
+ *                     name:
+ *                       type: string
+ *                       example: "Investment Circle"
+ *                 requests:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "6789"
+ *                       user:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "1001"
+ *                           name:
+ *                             type: string
+ *                             example: "Jane Doe"
+ *                           email:
+ *                             type: string
+ *                             example: "jane@example.com"
+ *                           phoneNumber:
+ *                             type: string
+ *                             example: "+1234567890"
+ *                       payoutAccount:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "501"
+ *                           bankName:
+ *                             type: string
+ *                             example: "First Bank"
+ *                           accountNumber:
+ *                             type: string
+ *                             example: "1234567890"
+ *                           isDefault:
+ *                             type: boolean
+ *                             example: true
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2025-11-07T10:15:00.000Z"
+ *       403:
+ *         description: Only the admin can view pending requests.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Only the admin can view pending requests.
+ *       404:
+ *         description: Group not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Group not found.
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
+ *                 error:
+ *                   type: string
+ *                   example: Error message details
+ */
+
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/join_request/{memberId}:
  *   post:
  *     summary: Approve or reject a group join request (Admin only)
  *     tags: [Groups]
@@ -331,6 +626,188 @@ module.exports = router;
  *         description: Group or request not found
  */
 
+
+/**
+ * @swagger
+ * /api/groups/{groupId}/approved_members:
+ *   get:
+ *     summary: Get all approved (active) members in a group
+ *     description: Returns a list of all approved members (status = active) for a specific group. Only the group admin can access this endpoint.
+ *     tags:
+ *       - Groups
+ *     security:
+ *       - bearerAuth: []   # JWT or similar authentication
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "9e46ad80-61c7-11ef-8b85-0242ac120004"
+ *         description: The unique ID of the group whose approved members should be retrieved.
+ *     responses:
+ *       200:
+ *         description: Approved members retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Approved members retrieved successfully.
+ *                 group:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "e9e4c2f1-7c2a-4f2b-bf83-872b9b723bd0"
+ *                     name:
+ *                       type: string
+ *                       example: "Investment Circle"
+ *                 Approved:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "b12345c6-7890-4a12-91d2-6543f9cdef12"
+ *                       user:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "1a2b3c4d"
+ *                           name:
+ *                             type: string
+ *                             example: "Jane Doe"
+ *                           email:
+ *                             type: string
+ *                             example: "jane@example.com"
+ *                           phone:
+ *                             type: string
+ *                             example: "+1234567890"
+ *                       payoutAccount:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             example: "501"
+ *                           bankName:
+ *                             type: string
+ *                             example: "Access Bank"
+ *                           accountNumber:
+ *                             type: string
+ *                             example: "2233822822"
+ *                           isDefault:
+ *                             type: boolean
+ *                             example: true
+ *       403:
+ *         description: Only the admin can view approved members.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Only the admin can view approved members requests.
+ *       404:
+ *         description: Group not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Group not found.
+ *       500:
+ *         description: Server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Server error
+ *                 error:
+ *                   type: string
+ *                   example: Detailed error message.
+ */
+
+
+
+
+/**
+ * @swagger
+ * /groups/{groupId}/current-round-contributions:
+ *   get:
+ *     summary: Get current round contributions
+ *     description: >
+ *       Retrieves all contributions for the current round in the active cycle of a group.  
+ *       Includes details about contributors, total contributions, active members, and any detected duplicate payments.  
+ *       Only available to members or admins of the group.
+ *     tags:
+ *       - Contributions
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the group.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved contributions for the current round.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 cycleId: "cyc_12345"
+ *                 currentRound: 3
+ *                 roundStartDate: "2025-11-01T00:00:00.000Z"
+ *                 contributions:
+ *                   - userId: "usr_101"
+ *                     userName: "Jane Doe"
+ *                     amount: "500.00"
+ *                     status: "paid"
+ *                     createdAt: "2025-11-10T09:45:00.000Z"
+ *                   - userId: "usr_202"
+ *                     userName: "John Smith"
+ *                     amount: "500.00"
+ *                     status: "completed"
+ *                     createdAt: "2025-11-09T14:10:00.000Z"
+ *                 summary:
+ *                   totalContributions: 2
+ *                   activeMembers: 5
+ *                   duplicates: null
+ *                   progress: "2/5"
+ *       404:
+ *         description: No active cycle found for the specified group.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "No active cycle"
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Server error"
+ *               error: "Error message here"
+ */
+
+
+
+
 /**
  * @swagger
  * /api/groups/{id}/summary:
@@ -353,9 +830,94 @@ module.exports = router;
  *         description: Group not found
  */
 
+
 /**
  * @swagger
- * /api/groups/{id}/payout-order:
+ * /api/groups/{groupId}/payout_info:
+ *   get:
+ *     summary: Get current payout information for a group
+ *     description: >
+ *       Returns detailed information about the active payout cycle of a group, including 
+ *       the current recipient, next recipient, total contributions, commission, penalties, 
+ *       and whether the payout can be triggered.  
+ *       Only the group admin or an active member can access this endpoint.
+ *     tags:
+ *       - Groups
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique ID of the group.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved payout information.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: true
+ *               data:
+ *                 hasActiveCycle: true
+ *                 cycleId: "c12345"
+ *                 currentRound: 2
+ *                 totalRounds: 5
+ *                 currentRecipient:
+ *                   userId: "u789"
+ *                   name: "Jane Doe"
+ *                   email: "jane@example.com"
+ *                   profilePicture: "https://cdn.app.com/jane.png"
+ *                 nextRecipient:
+ *                   userId: "u456"
+ *                   name: "John Smith"
+ *                   position: 3
+ *                 pot:
+ *                   totalCollected: "5000.00"
+ *                   commissionFee: "100.00"
+ *                   penaltyFee: "25.00"
+ *                   finalPayout: "4900.00"
+ *                 contributions:
+ *                   received: 5
+ *                   total: 5
+ *                   remaining: 0
+ *                   percentage: "100.00%"
+ *                 canTriggerPayout: true
+ *                 existingPayoutId: null
+ *                 message: "Ready for payout"
+ *       403:
+ *         description: Access denied. User is not an active member or admin.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Access denied"
+ *       404:
+ *         description: Group not found.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Group not found"
+ *       500:
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             example:
+ *               success: false
+ *               message: "Server error"
+ *               error: "Error message here"
+ */
+
+
+
+
+
+
+/**
+ * @swagger
+ * /api/groups/{id}/payout_order:
  *   get:
  *     summary: Get payout order for a group
  *     description: >
@@ -443,7 +1005,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/payout-order:
+ * /api/groups/{id}/payout_order:
  *   put:
  *     summary: Set or update payout order for a group (Admin only)
  *     description: >
@@ -516,7 +1078,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/randomize-payout-order:
+ * /api/groups/{id}/randomize_payout_order:
  *   post:
  *     summary: Randomize payout order for a group (Admin only)
  *     description: >
@@ -573,7 +1135,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/start-cycle:
+ * /api/groups/{id}/start_cycle:
  *   post:
  *     summary: Start a new contribution cycle (Admin only)
  *     tags: [Groups]
@@ -598,43 +1160,7 @@ module.exports = router;
 
 /**
  * @swagger
- * /api/groups/{id}/contribute:
- *   post:
- *     summary: Make a contribution in the active cycle
- *     tags: [Groups]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - amount
- *             properties:
- *               amount:
- *                 type: number
- *     responses:
- *       200:
- *         description: Contribution successful
- *       400:
- *         description: Already contributed or invalid amount
- *       403:
- *         description: User not a member
- *       404:
- *         description: Group not found
- */
-
-/**
- * @swagger
- * /api/groups/{id}/end-cycle:
+ * /api/groups/{id}/end_cycle:
  *   post:
  *     summary: End an active cycle for a group (Admin only)
  *     description: >
@@ -771,4 +1297,112 @@ module.exports = router;
  *                   example: "Server error"
  *                 error:
  *                   type: string
+ */
+
+
+/**
+ * @swagger
+ * /api/groups/{id}:
+ *   delete:
+ *     summary: Delete a group (Admin only)
+ *     description: >
+ *       Permanently deletes a group and all related records, including memberships, cycles,
+ *       payouts, and contributions. Only the group admin can perform this action.  
+ *       <br><br>
+ *       ⚠️ **Important:** A group cannot be deleted if it has an active cycle or pending payouts.
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the group to delete
+ *         schema:
+ *           type: string
+ *           example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Group deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Group deleted successfully."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     groupName:
+ *                       type: string
+ *                       example: "Family Savings Club"
+ *                     membersNotified:
+ *                       type: integer
+ *                       example: 12
+ *                     contributionsDeleted:
+ *                       type: integer
+ *                       example: 120
+ *       400:
+ *         description: Cannot delete due to active cycle or pending payouts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Cannot delete group with an active cycle. Please end the cycle first."
+ *                 suggestion:
+ *                   type: string
+ *                   example: "Use the end-cycle endpoint first."
+ *       403:
+ *         description: Only the group admin can delete this group
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Only the group admin can delete this group."
+ *       404:
+ *         description: Group not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Group not found."
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Unexpected error occurred."
+ *                 error:
+ *                   type: string
+ *                   example: "server error"
  */

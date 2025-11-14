@@ -1,4 +1,4 @@
-const Joi = require('joi')
+const Joi = require('joi');
 
 exports.registerValidator = async (req, res, next) => {
 
@@ -48,7 +48,7 @@ exports.registerValidator = async (req, res, next) => {
     });
 
     try {
-        await Schema.validateAsync(req.body, { abortEarly: false });
+        await Schema.validateAsync(req.body, { abortEarly: true });
 
         next();
 
@@ -74,7 +74,7 @@ exports.loginValidator = async (req, res, next) => {
   });
 
   try {
-    await schema.validateAsync(req.body, { abortEarly: false });
+    await schema.validateAsync(req.body, { abortEarly: true });
     next();
   } catch (error) {
     return res.status(400).json({
@@ -146,6 +146,15 @@ exports.groupRegisterValidator = async (req, res, next) => {
         'number.positive': 'Contribution Amount must be greater than zero (0)',
         'any.required': 'Contribution Amount is required',
         'number.precision': 'Contribution amount can only have up to 2 decimal places',
+      }),
+
+        penaltyFee: Joi.number() // 
+      .precision(2)
+      .positive()
+      .messages({
+        'number.base': 'Penalty Fee must be a number',
+        'number.positive': 'Penalty Fee must be greater than zero (0)',
+        'number.precision': 'Penalty Fee can only have up to 2 decimal places',
       }),
 
     contributionFrequency: Joi.string()

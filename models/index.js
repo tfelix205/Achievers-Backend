@@ -1,46 +1,82 @@
-const Sequelize = require('sequelize');
-require('dotenv').config();
+// const Sequelize = require('sequelize');
+// require('dotenv').config();
 
-const sequelize = new Sequelize(
-    process.env.DB_NAME,
-    process.env.DB_USER,
-    process.env.DB_PASS,
-    {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 5432,
-    dialect: process.env.DB_DIALECT  || "postgres",
-    logging: false,
-    dialectOptions: {
-      ssl: {
-        require: true,              //  Force SSL
-        rejectUnauthorized: false,  //  Allow self-signed certs (Render uses these)
-      },
+// const sequelize = new Sequelize(
+//     process.env.DB_NAME,
+//     process.env.DB_USER,
+//     process.env.DB_PASS,
+//     {
+//     host: process.env.DB_HOST,
+//     port: process.env.DB_PORT || 5432,
+//     dialect: process.env.DB_DIALECT  || "postgres",
+//     logging: false,
+//     dialectOptions: {
+//       ssl: {
+//         require: true,              //  Force SSL
+//         rejectUnauthorized: false,  //  Allow self-signed certs (Render uses these)
+//       },
 
-    },
-  },
-  
-);
+//     },
+//   },
+// );
 
-// const sequelize = new Sequelize('ajo_db', 'root', 'Backend8989', {
+// const sequelize = new Sequelize('ajo-schema', 'root', 'chichi2022', {
 //   host: 'localhost',
 //    dialect: 'mysql',
 //    logging:false 
 //  });
 
- (async () => {
+//  (async () => {
+//   try {
+//     await sequelize.authenticate();
+//     console.log(' Database connection has been established successfully.');
+//   } catch (error) {
+//     console.error(' Unable to connect to the database:', error);
+//   }
+// })();
+
+const Sequelize = require('sequelize');
+require('dotenv').config();
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const sequelize = isProduction
+  ? new Sequelize(
+      process.env.DB_NAME,
+      process.env.DB_USER,
+      process.env.DB_PASS,
+      {
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT || 5432,
+        dialect: process.env.DB_DIALECT || 'postgres',
+        logging: false,
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+        },
+      }
+    )
+  : new Sequelize('splitconsole', 'root', 'Backend8989', {
+      host: 'localhost',
+      dialect: 'mysql',
+      logging: false,
+    });
+
+// Test connection
+(async () => {
   try {
     await sequelize.authenticate();
-    console.log(' Database connection has been established successfully.');
+    console.log('Database connection established successfully.');
   } catch (error) {
-    console.error(' Unable to connect to the database:', error);
+    console.error('Unable to connect to the database:', error);
   }
 })();
 
-
-
 // Models
 
-User = require('./user')(sequelize, Sequelize.DataTypes);
+const User = require('./user')(sequelize, Sequelize.DataTypes);
 const Group = require('./group')(sequelize, Sequelize.DataTypes);
 const Membership = require('./groupMembers')(sequelize, Sequelize.DataTypes);
 const PayoutAccount = require('./payoutAccount')(sequelize, Sequelize.DataTypes);
@@ -59,19 +95,6 @@ Group.belongsToMany(User, { through: Membership, foreignKey: 'groupId', as: 'mem
 // Group → Admin (1-to-1 with User)
 Group.belongsTo(User, { foreignKey: 'adminId', as: 'admin' });
 
-// membership
-Membership.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-Membership.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
-User.hasMany(Membership, { foreignKey: 'userId', as: 'memberships' });
-Group.hasMany(Membership, { foreignKey: 'groupId', as: 'memberships' });
-Membership.hasMany(Contribution, { foreignKey: 'memberId', as: 'contributions' });
-Contribution.belongsTo(Membership, { foreignKey: 'memberId', as: 'member' });
-
-
-// user -> group (1-to-many)
-User.hasMany(Group, { foreignKey: 'adminId', as: 'createdGroups' });
-
-
 // User → PayoutAccounts
 User.hasMany(PayoutAccount, { foreignKey: 'userId', as: 'payoutAccounts' });
 PayoutAccount.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -82,6 +105,8 @@ Contribution.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 Group.hasMany(Contribution, { foreignKey: 'groupId', as: 'contributions' });
 Contribution.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
+
+Contribution.belongsTo(Cycle, { foreignKey: 'cycleId', as: 'cycle' });
 
 // Cycle
 Group.hasMany(Cycle, { foreignKey: 'groupId', as: 'cycles' });
@@ -98,6 +123,13 @@ Cycle.hasMany(Payout, { foreignKey: 'cycleId', as: 'payouts' });
 Payout.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 Payout.belongsTo(Group, { foreignKey: 'groupId', as: 'group' });
 Payout.belongsTo(Cycle, { foreignKey: 'cycleId', as: 'cycle' });
+
+//membership
+User.hasMany(Membership, { foreignKey: 'userId', as: 'memberships' });
+Membership.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Membership.hasOne(PayoutAccount, { foreignKey: 'membershipId', as: 'payoutAccount' });
+PayoutAccount.belongsTo(Membership, { foreignKey: 'membershipId', as: 'membership' });
+
 
 // Exporting  all models so they can be accessed in controllers and jobs
 module.exports = {
