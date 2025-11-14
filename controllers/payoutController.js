@@ -248,13 +248,14 @@ exports.createPayout = async (req, res) => {
       ],
       transaction: t
     });
-
+     console.log('checking payout account', membership.payoutAccountId);
+     
     if (!membership) {
       await t.rollback();
       return res.status(404).json({ success: false, message: 'Recipient not found in group' });
     }
 
-    if (!membership.payoutAccount) {
+    if (!membership.payoutAccountId) {
       await t.rollback();
       return res.status(400).json({ success: false, message: `Recipient ${membership.user.name} has no payout account configured` });
     }
@@ -307,13 +308,13 @@ exports.createPayout = async (req, res) => {
         activeMemberId: nextMember.userId,
         currentRoundStartDate: nextRoundStartDate
       });
-      rotationMessage = ` Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`;
+      rotationMessage = `payout successful, Round ${cycle.currentRound} completed. Next: ${nextMember.user.name}`;
       console.log(rotationMessage);
       console.log(` New round starts at: ${nextRoundStartDate.toISOString()}`);
     } else {
       await cycle.update({ status: 'completed', endDate: new Date() });
       await group.update({ status: 'completed' });
-      rotationMessage = ` Cycle completed for group: ${group.groupName}`;
+      rotationMessage = `payout successful,  Cycle completed for group: ${group.groupName}`;
       console.log(rotationMessage);
     }
 
@@ -324,11 +325,11 @@ exports.createPayout = async (req, res) => {
         await sendMail({
           email: member.user.email,
           subject: nextMember
-            ? `Round ${cycle.currentRound} Completed - ${group.groupName}`
+            ? `Round ${cycle.currentRound - 1} Completed - ${group.groupName}`
             : `Cycle Completed! - ${group.groupName}`,
           html: nextMember
             ? `<p>Hi ${member.user.name},</p>
-               <p>Round ${cycle.currentRound} of <b>${group.groupName}</b> has been completed.</p>
+               <p>Round ${cycle.currentRound - 1} of <b>${group.groupName}</b> has been completed.</p>
                <p>Payout made to: <b>${members[currentIndex].user.name}</b></p>
                <p>Next recipient: <b>${nextMember.user.name}</b></p>
                <p>Please make your contribution for Round ${cycle.currentRound}.</p>`
@@ -353,8 +354,8 @@ exports.createPayout = async (req, res) => {
           name: membership.user.name,
           email: membership.user.email,
           account: {
-            bank: membership.payoutAccount.bankName,
-            accountNumber: membership.payoutAccount.accountNumber
+            bank: membership.payoutAccountId.bankName,
+            accountNumber: membership.payoutAccountId.accountNumber
           }
         },
         nextRecipient: nextMember ? { id: nextMember.user.id, name: nextMember.user.name } : null,

@@ -137,7 +137,7 @@ exports.groupRegisterValidator = async (req, res, next) => {
         'string.pattern.base': 'Name can only contain letters and spaces',
       }),
 
-    contributionAmount: Joi.number() // 🧠 note: fixed typo "constributionAmount"
+    contributionAmount: Joi.number() 
       .precision(2)
       .positive()
       .required()
@@ -148,7 +148,7 @@ exports.groupRegisterValidator = async (req, res, next) => {
         'number.precision': 'Contribution amount can only have up to 2 decimal places',
       }),
 
-        penaltyFee: Joi.number() // 
+        penaltyFee: Joi.number() 
       .precision(2)
       .positive()
       .messages({
