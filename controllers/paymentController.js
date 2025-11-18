@@ -3,8 +3,6 @@ const korapayService = require('../services/korapayService');
 const { User, Group, Contribution, Cycle, sequelize, Membership } = require('../models');
 const { Op } = require('sequelize');
 
-
-
 exports.initializeContribution = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -14,7 +12,10 @@ exports.initializeContribution = async (req, res) => {
     const group = await Group.findByPk(groupId);
 
     if (!group) {
-      return res.status(404).json({ message: 'Group not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Group not found' 
+      });
     }
 
     const cycle = await Cycle.findOne({
@@ -22,10 +23,64 @@ exports.initializeContribution = async (req, res) => {
     });
 
     if (!cycle) {
-      return res.status(400).json({ message: 'No active cycle' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'No active cycle' 
+      });
     }
 
-    //  Generate unique reference
+    // Check if user already contributed this round BEFORE initializing payment
+    const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
+    
+    const existingContribution = await Contribution.findOne({
+      where: {
+        userId,
+        cycleId: cycle.id,
+        status: { [Op.in]: ['paid', 'completed'] },
+        createdAt: { [Op.gte]: currentRoundStart }
+      }
+    });
+
+    if (existingContribution) {
+      return res.status(400).json({
+        success: false,
+        message: `You have already contributed ₦${existingContribution.amount.toLocaleString()} for round ${cycle.currentRound}. Payment cannot be initialized.`,
+        data: {
+          existingContribution: {
+            id: existingContribution.id,
+            amount: existingContribution.amount,
+            date: existingContribution.createdAt,
+            status: existingContribution.status
+          }
+        }
+      });
+    }
+
+    // check for pending payments with this reference pattern
+    const pendingPayment = await Contribution.findOne({
+      where: {
+        userId,
+        cycleId: cycle.id,
+        status: 'pending',
+        createdAt: { [Op.gte]: currentRoundStart }
+      }
+    });
+
+    if (pendingPayment) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have a pending payment for this round. Please complete or cancel it before starting a new one.',
+        data: {
+          pendingPayment: {
+            id: pendingPayment.id,
+            reference: pendingPayment.paymentReference,
+            amount: pendingPayment.amount
+          }
+        }
+      });
+    }
+
+    
     const reference = `Splita-${uuidv4()}`;
     const amount = parseFloat(group.contributionAmount);
 
@@ -87,9 +142,9 @@ exports.verifyContribution = async (req, res) => {
       });
     }
 
-    console.log(` Verifying payment for reference: ${reference} by user ${userId}`);
+    console.log(`Verifying payment for reference: ${reference} by user ${userId}`);
 
-    //  Check if already processed
+    // Check if already processed
     const existingContribution = await Contribution.findOne({
       where: { paymentReference: reference },
       transaction: t
@@ -113,7 +168,7 @@ exports.verifyContribution = async (req, res) => {
     let result = await korapayService.verifyPayment(reference);
 
     if (!result.success && result.error?.code === 'AA026') {
-      console.warn(`⚠️ Charge not found (AA026), retrying verification after 2 seconds...`);
+      console.warn(` Charge not found (AA026), retrying verification after 2 seconds...`);
       await new Promise(r => setTimeout(r, 2000));
       result = await korapayService.verifyPayment(reference);
     }
@@ -155,6 +210,7 @@ exports.verifyContribution = async (req, res) => {
 
       const currentRoundStart = cycle.currentRoundStartDate || cycle.startDate;
       
+      // Double-check before recording (race condition protection)
       const existingRoundContribution = await Contribution.findOne({
         where: {
           userId: metaUserId,
@@ -179,7 +235,7 @@ exports.verifyContribution = async (req, res) => {
         });
       }
 
-      //  Record contribution
+      // Record contribution
       const contribution = await Contribution.create({
         userId: metaUserId,
         groupId: groupId,
@@ -198,14 +254,67 @@ exports.verifyContribution = async (req, res) => {
 
       await t.commit();
 
-      console.log(` Contribution recorded for user ${userId}: ₦${payment.amount}`);
+      console.log(`Contribution recorded for user ${userId}: ₦${payment.amount}`);
 
-      // You can trigger payout here if needed (rotation logic)
-      
+      // Send contribution confirmation email
+      try {
+        const { sendMail } = require('../utils/sendgrid');
+        const { contributionReceivedMail } = require('../utils/contributionReceivedMail');
+        
+        // Fetch user and group details for email
+        const user = await User.findByPk(metaUserId);
+        const group = await Group.findByPk(groupId);
+        const dateString = new Date().toISOString().split('T')[0];
+
+        if (user && user.email && group) {
+          await sendMail({
+            email: user.email,
+            subject: 'Contribution Received - ' + group.groupName,
+            html: contributionReceivedMail(
+              user.name,
+              group.groupName,
+              payment.amount,
+              dateString
+            )
+          });
+          console.log(`Contribution email sent to ${user.email}`);
+        }
+      } catch (emailError) {
+        console.error('Email notification error:', emailError);
+        
+      }
+
+      // Trigger payout rotation check
+      try {
+        const totalContributions = await Contribution.count({
+          where: {
+            cycleId: cycle.id,
+            status: { [Op.in]: ['paid', 'completed'] },
+            createdAt: { [Op.gte]: currentRoundStart }
+          }
+        });
+
+        const activeMembers = await Membership.count({
+          where: { groupId, status: 'active' }
+        });
+
+        if (totalContributions >= activeMembers) {
+          const { handlePayoutAndRotate } = require('./groupController');
+        console.log(`All members have contributed for round ${cycle.currentRound}. Initiating payout rotation.`);
+        
+        }
+      } catch (rotationError) {
+        console.error('Payout rotation error:', rotationError);
+      }
+
       return res.status(200).json({
         success: true,
         message: 'Payment verified and contribution recorded',
-        data: { contributionId: contribution.id, amount: contribution.amount }
+        data: { 
+          contributionId: contribution.id, 
+          amount: contribution.amount,
+          round: cycle.currentRound
+        }
       });
 
     } else if (payment.status === 'failed') {
