@@ -396,7 +396,6 @@ exports.getUserGroups = async (req, res) => {
   try {
     const userId = req.user.id;
     
-
     const userMemberships = await Membership.findAll({
       where: { userId, status: 'active' },
       attributes: ['groupId']
@@ -428,7 +427,7 @@ exports.getUserGroups = async (req, res) => {
         {
           model: Cycle,
           as: 'cycles',
-          attributes: ['id', 'currentRound', 'totalRounds', 'status', 'activeMemberId', 'startDate', 'endDate'],
+          attributes: ['id', 'currentRound', 'totalRounds', 'status', 'activeMemberId', 'startDate', 'endDate', 'currentRoundStartDate'],
           where: { status: 'active' },
           required: false
         }
@@ -436,9 +435,38 @@ exports.getUserGroups = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    const formattedGroups = groups.map(group => {
+    const formattedGroups = await Promise.all(groups.map(async (group) => {
       const activeCycle = group.cycles?.[0] || null;
       const currentUserMembership = group.members.find(m => m.id === userId);
+
+      // ✅ Calculate pot details if there's an active cycle
+      let potDetails = null;
+      
+      if (activeCycle) {
+        const currentRoundStart = activeCycle.currentRoundStartDate || activeCycle.startDate;
+        
+        // Get contributions for current round
+        const contributions = await Contribution.findAll({
+          where: {
+            cycleId: activeCycle.id,
+            status: { [Op.in]: ['paid', 'completed'] },
+            createdAt: { [Op.gte]: currentRoundStart }
+          }
+        });
+
+        const totalAmount = contributions.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+        const commissionRate = parseFloat(group.commissionRate || 2);
+        const commissionFee = (commissionRate / 100) * totalAmount;
+        const totalPenalties = contributions.reduce((sum, c) => sum + parseFloat(c.penaltyFee || 0), 0);
+        const finalAmount = totalAmount - commissionFee;
+
+        potDetails = {
+          totalCollected: totalAmount.toFixed(2),
+          commissionFee: commissionFee.toFixed(2),
+          penaltyFee: totalPenalties.toFixed(2),
+          finalPayout: finalAmount.toFixed(2)
+        };
+      }
 
       return {
         id: group.id,
@@ -506,13 +534,16 @@ exports.getUserGroups = async (req, res) => {
             : "0.00"
         } : null,
 
+        // ✅ NEW: Pot details for current round
+        pot: potDetails,
+
         stats: {
           isComplete: group.members.length === group.totalMembers,
           spotsRemaining: Math.max(0, group.totalMembers - group.members.length),
           hasActiveCycle: !!activeCycle
         }
       };
-    });
+    }));
 
     res.status(200).json({ success: true, count: formattedGroups.length, data: formattedGroups });
 
@@ -521,7 +552,6 @@ exports.getUserGroups = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
-
 
 
 
